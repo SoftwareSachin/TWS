@@ -3,28 +3,12 @@
 Simple FastAPI server for testing in Replit environment
 """
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 import os
 import asyncpg
 import asyncio
 
-# Simple FastAPI app for testing
+# Simple FastAPI app for testing - NO MIDDLEWARE OR AUTHENTICATION
 app = FastAPI(title="Amplifi API - Development", version="1.0.0")
-
-# Add CORS middleware - configured for Replit environment
-allowed_origins = [
-    "http://localhost:5000",
-    "https://46f16f80-5ad6-4a8b-815a-e85bed812b03-00-2r1kwmxrer1gf.sisko.replit.dev:5000",
-    "https://46f16f80-5ad6-4a8b-815a-e85bed812b03-00-2r1kwmxrer1gf.sisko.replit.dev"
-]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=allowed_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 async def test_database():
     """Test database connectivity"""
@@ -166,4 +150,4 @@ async def delete_user(user_id: int):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="localhost", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8000)
