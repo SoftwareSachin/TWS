@@ -6,9 +6,10 @@ import { decodeToken } from "@/components/utility/decodeJwtToken";
 
 const cookies = new Cookies();
 
+// Use relative API paths for better portability across environments
 export const baseURL = {
-  v1: `https://f8274a5f-100f-4c7b-add5-dfe41a5481b7-00-17jywrdgr4q1b.janeway.replit.dev:8000/v1`,
-  v2: `https://f8274a5f-100f-4c7b-add5-dfe41a5481b7-00-17jywrdgr4q1b.janeway.replit.dev:8000/v2`,
+  v1: '/api/v1',
+  v2: '/api/v2',
 };
 
 let isRefreshing = false;
