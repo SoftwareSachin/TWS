@@ -11,10 +11,16 @@ import asyncio
 # Simple FastAPI app for testing
 app = FastAPI(title="Amplifi API - Development", version="1.0.0")
 
-# Add CORS middleware
+# Add CORS middleware - configured for Replit environment
+allowed_origins = [
+    "http://localhost:5000",
+    "https://46f16f80-5ad6-4a8b-815a-e85bed812b03-00-2r1kwmxrer1gf.sisko.replit.dev:5000",
+    "https://46f16f80-5ad6-4a8b-815a-e85bed812b03-00-2r1kwmxrer1gf.sisko.replit.dev"
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
