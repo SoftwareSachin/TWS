@@ -75,6 +75,7 @@ destinations_db: Dict[str, List[Dict]] = {}
 workspaces_db: Dict[str, List[Dict]] = {}
 workflows_db: Dict[str, List[Dict]] = {}
 datasets_db: Dict[str, List[Dict]] = {}
+chat_apps_db: Dict[str, List[Dict]] = {}
 
 class UserCreate(BaseModel):
     """User creation model"""
@@ -275,6 +276,64 @@ async def get_organization(organization_id: str):
         "name": "Test Organization",
         "status": "active",
         "created_at": datetime.now(timezone.utc).isoformat()
+    }
+
+@app.get("/v2/my_chat_app")
+async def get_my_chat_apps(
+    chat_app_type: Optional[str] = None,
+    order: Optional[str] = "ascendent", 
+    page: int = 1,
+    size: int = 8
+):
+    """Get user's chat apps"""
+    # Mock chat app data for development
+    mock_chat_apps = [
+        {
+            "id": "chat-app-1",
+            "name": "Customer Support Assistant",
+            "description": "AI assistant for customer support queries",
+            "chat_app_type": "unstructured_chat_app",
+            "status": "active",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "workspace_id": "workspace-1",
+            "config": {
+                "model": "gpt-3.5-turbo",
+                "temperature": 0.7
+            }
+        },
+        {
+            "id": "chat-app-2", 
+            "name": "Data Analysis Helper",
+            "description": "AI assistant for data analysis tasks",
+            "chat_app_type": "unstructured_chat_app",
+            "status": "active",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "workspace_id": "workspace-1",
+            "config": {
+                "model": "gpt-4",
+                "temperature": 0.5
+            }
+        }
+    ]
+    
+    # Filter by chat_app_type if provided
+    if chat_app_type:
+        mock_chat_apps = [app for app in mock_chat_apps if app["chat_app_type"] == chat_app_type]
+    
+    # Simple pagination 
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_apps = mock_chat_apps[start_idx:end_idx]
+    
+    return {
+        "data": {
+            "items": paginated_apps,
+            "total": len(mock_chat_apps),
+            "page": page,
+            "size": size,
+            "pages": (len(mock_chat_apps) + size - 1) // size
+        },
+        "message": "Chat apps retrieved successfully"
     }
 
 if __name__ == "__main__":

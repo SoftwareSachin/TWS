@@ -9,9 +9,22 @@ const nextConfig = {
     ],
   },
   reactStrictMode: true,
-  // Allow all dev origins for Replit proxy compatibility  
+  // Allow all dev origins for Replit proxy compatibility (moved out of experimental for Next.js 15)
+  allowedDevOrigins: [
+    '*.replit.dev',
+    '*.repl.co', 
+    'localhost:*',
+    '127.0.0.1:*'
+  ],
   experimental: {
-    allowedDevOrigins: ['*'],
+    serverActions: {
+      allowedOrigins: [
+        '*.replit.dev',
+        '*.repl.co',
+        'localhost:*',
+        '127.0.0.1:*'
+      ],
+    },
   },
   env: {
     NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
