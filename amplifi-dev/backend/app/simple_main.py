@@ -60,6 +60,12 @@ from datetime import datetime
 users_db: Dict[int, Dict] = {}
 next_user_id = 1
 
+# Mock data stores for organization-related endpoints
+destinations_db: Dict[str, List[Dict]] = {}
+workspaces_db: Dict[str, List[Dict]] = {}
+workflows_db: Dict[str, List[Dict]] = {}
+datasets_db: Dict[str, List[Dict]] = {}
+
 class UserCreate(BaseModel):
     """User creation model"""
     email: str
@@ -147,6 +153,119 @@ async def delete_user(user_id: int):
     
     del users_db[user_id]
     return {"message": "User deleted successfully"}
+
+# ==================== API V2 ENDPOINTS ====================
+# Organization-based endpoints that the frontend expects
+
+@app.get("/v2/organization/{organization_id}/destination")
+async def get_destinations(organization_id: str):
+    """Get all destinations for an organization"""
+    if organization_id not in destinations_db:
+        destinations_db[organization_id] = [
+            {
+                "id": "dest-1",
+                "name": "Sample Destination",
+                "type": "database",
+                "status": "connected",
+                "created_at": datetime.utcnow().isoformat(),
+                "config": {"host": "localhost", "port": 5432}
+            }
+        ]
+    return {"data": destinations_db[organization_id], "message": "Destinations retrieved successfully"}
+
+@app.post("/v2/organization/{organization_id}/destination")
+async def create_destination(organization_id: str, destination_data: dict):
+    """Create a new destination for an organization"""
+    if organization_id not in destinations_db:
+        destinations_db[organization_id] = []
+    
+    new_destination = {
+        "id": f"dest-{len(destinations_db[organization_id]) + 1}",
+        "name": destination_data.get("name", "New Destination"),
+        "type": destination_data.get("type", "database"),
+        "status": "pending",
+        "created_at": datetime.utcnow().isoformat(),
+        "config": destination_data.get("config", {})
+    }
+    destinations_db[organization_id].append(new_destination)
+    return {"data": new_destination, "message": "Destination created successfully"}
+
+@app.get("/v2/organization/{organization_id}/destination/{destination_id}/connection_status")
+async def get_destination_status(organization_id: str, destination_id: str):
+    """Get connection status for a specific destination"""
+    return {
+        "status": "connected",
+        "last_check": datetime.utcnow().isoformat(),
+        "message": "Connection is healthy"
+    }
+
+@app.delete("/v2/organization/{organization_id}/destination/{destination_id}")
+async def delete_destination(organization_id: str, destination_id: str):
+    """Delete a specific destination"""
+    if organization_id in destinations_db:
+        destinations_db[organization_id] = [
+            dest for dest in destinations_db[organization_id]
+            if dest["id"] != destination_id
+        ]
+    return {"message": "Destination deleted successfully"}
+
+@app.get("/v2/organization/{organization_id}/workspace")
+async def get_workspaces(organization_id: str):
+    """Get all workspaces for an organization"""
+    if organization_id not in workspaces_db:
+        workspaces_db[organization_id] = [
+            {
+                "id": "workspace-1",
+                "name": "Main Workspace",
+                "description": "Primary workspace for data analysis",
+                "status": "active",
+                "created_at": datetime.utcnow().isoformat()
+            }
+        ]
+    return {"data": workspaces_db[organization_id], "message": "Workspaces retrieved successfully"}
+
+@app.get("/v2/organization/{organization_id}/workflow")
+async def get_workflows(organization_id: str):
+    """Get all workflows for an organization"""
+    if organization_id not in workflows_db:
+        workflows_db[organization_id] = [
+            {
+                "id": "workflow-1",
+                "name": "Data Processing Pipeline",
+                "description": "Automated data processing and analysis",
+                "status": "running",
+                "created_at": datetime.utcnow().isoformat()
+            }
+        ]
+    return {"data": workflows_db[organization_id], "message": "Workflows retrieved successfully"}
+
+@app.get("/v2/organization/{organization_id}/dataset")
+async def get_datasets(organization_id: str):
+    """Get all datasets for an organization"""
+    if organization_id not in datasets_db:
+        datasets_db[organization_id] = [
+            {
+                "id": "dataset-1",
+                "name": "Sample Dataset",
+                "description": "Sample data for testing",
+                "status": "ready",
+                "created_at": datetime.utcnow().isoformat(),
+                "size": "1.2MB",
+                "records": 1500
+            }
+        ]
+    return {"data": datasets_db[organization_id], "message": "Datasets retrieved successfully"}
+
+# Additional endpoints that might be needed
+@app.get("/v2/organization/{organization_id}")
+async def get_organization(organization_id: str):
+    """Get organization details"""
+    return {
+        "id": organization_id,
+        "name": "Test Organization",
+        "status": "active",
+        "created_at": datetime.utcnow().isoformat()
+    }
 
 if __name__ == "__main__":
     import uvicorn
