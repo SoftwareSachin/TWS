@@ -1596,11 +1596,11 @@ wheels = [
 
 [[package]]
 name = "redis"
-version = "6.4.0"
+version = "5.0.4"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/0d/d6/e8b92798a5bd67d659d51a18170e91c16ac3b59738d91894651ee255ed49/redis-6.4.0.tar.gz", hash = "sha256:b01bc7282b8444e28ec36b261df5375183bb47a07eb9c603f284e89cbc5ef010", size = 4647399 }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/9c/1d57b0f61402aabdd9c3b2882e3fddd86a269c1df2cfd2e77daa607ef047/redis-5.0.4.tar.gz", hash = "sha256:ec31f2ed9675cc54c21ba854cfe0462e6faf1d83c8ce5944709db8a4700b9c61", size = 4581983 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e8/02/89e2ed7e85db6c93dfa9e8f691c5087df4e3551ab39081a4d7c6d1f90e05/redis-6.4.0-py3-none-any.whl", hash = "sha256:f0544fa9604264e9464cdf4814e7d4830f74b165d52f2a330a760a88dd248b7f", size = 279847 },
+    { url = "https://files.pythonhosted.org/packages/65/f2/540ad07910732733138beb192991c67c69e7f6ebf549ce1a3a77846cbae7/redis-5.0.4-py3-none-any.whl", hash = "sha256:7adc2835c7a9b5033b7ad8f8918d09b7344188228809c98df07af226d39dec91", size = 251954 },
 ]
 
 [[package]]
@@ -1635,27 +1635,27 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "aiofiles", specifier = ">=24.1.0" },
-    { name = "alembic", specifier = ">=1.16.5" },
-    { name = "asyncpg", specifier = ">=0.30.0" },
-    { name = "azure-storage-blob", specifier = ">=12.26.0" },
-    { name = "bcrypt", specifier = ">=4.3.0" },
-    { name = "celery", specifier = ">=5.5.3" },
-    { name = "cryptography", specifier = ">=46.0.1" },
-    { name = "fastapi", extras = ["all"], specifier = ">=0.117.1" },
+    { name = "alembic", specifier = ">=1.13.0" },
+    { name = "asyncpg", specifier = ">=0.29.0" },
+    { name = "azure-storage-blob", specifier = ">=12.24.0" },
+    { name = "bcrypt", specifier = ">=4.1.1" },
+    { name = "celery", specifier = ">=5.3.6" },
+    { name = "cryptography", specifier = ">=43.0.1" },
+    { name = "fastapi", extras = ["all"], specifier = ">=0.116.1" },
     { name = "httpx", specifier = ">=0.28.1" },
-    { name = "pandas", specifier = ">=2.3.2" },
-    { name = "pdfplumber", specifier = ">=0.11.7" },
-    { name = "pillow", specifier = ">=11.3.0" },
+    { name = "pandas", specifier = ">=2.1.4" },
+    { name = "pdfplumber", specifier = ">=0.11.5" },
+    { name = "pillow", specifier = ">=10.0.0" },
     { name = "poetry", specifier = ">=2.2.1" },
-    { name = "psycopg2-binary", specifier = ">=2.9.10" },
+    { name = "psycopg2-binary", specifier = ">=2.9.5" },
     { name = "pydantic", specifier = ">=2.11.9" },
-    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.10.1" },
-    { name = "redis", specifier = ">=6.4.0" },
-    { name = "requests", specifier = ">=2.32.5" },
-    { name = "sqlmodel", specifier = ">=0.0.25" },
-    { name = "tenacity", specifier = ">=9.1.2" },
-    { name = "tzdata", specifier = ">=2025.2" },
-    { name = "uvicorn", specifier = ">=0.36.0" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.8.0" },
+    { name = "redis", specifier = "==5.0.4" },
+    { name = "requests", specifier = ">=2.31.0" },
+    { name = "sqlmodel", specifier = "==0.0.16" },
+    { name = "tenacity", specifier = ">=9.0.0" },
+    { name = "tzdata", specifier = ">=2023.3" },
+    { name = "uvicorn", specifier = ">=0.27.0" },
 ]
 
 [[package]]
@@ -1842,15 +1842,15 @@ wheels = [
 
 [[package]]
 name = "sqlmodel"
-version = "0.0.25"
+version = "0.0.16"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pydantic" },
     { name = "sqlalchemy" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ea/80/d9c098a88724ee4554907939cf39590cf67e10c6683723216e228d3315f7/sqlmodel-0.0.25.tar.gz", hash = "sha256:56548c2e645975b1ed94d6c53f0d13c85593f57926a575e2bf566650b2243fa4", size = 117075 }
+sdist = { url = "https://files.pythonhosted.org/packages/7a/59/01efcf4062f18aa87ccf07f641deaabb37d263321ad2c0e982555b358632/sqlmodel-0.0.16.tar.gz", hash = "sha256:966656f18a8e9a2d159eb215b07fb0cf5222acfae3362707ca611848a8a06bd1", size = 26198 }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/cf/5d175ce8de07fe694ec4e3d4d65c2dd06cc30f6c79599b31f9d2f6dd2830/sqlmodel-0.0.25-py3-none-any.whl", hash = "sha256:c98234cda701fb77e9dcbd81688c23bb251c13bb98ce1dd8d4adc467374d45b7", size = 28893 },
+    { url = "https://files.pythonhosted.org/packages/1b/a9/5a8dde5fae37b98cd33ce0b62a1861ddbdddfab0ddb9f80d56c775ba3adc/sqlmodel-0.0.16-py3-none-any.whl", hash = "sha256:b972f5d319580d6c37ecc417881f6ec4d1ad3ed3583d0ac0ed43234a28bf605a", size = 26253 },
 ]
 
 [[package]]
