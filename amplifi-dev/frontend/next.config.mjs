@@ -9,8 +9,10 @@ const nextConfig = {
     ],
   },
   reactStrictMode: true,
-  // Allow all dev origins for Replit proxy compatibility
-  allowedDevOrigins: ['*'],
+  // Allow all dev origins for Replit proxy compatibility  
+  experimental: {
+    allowedDevOrigins: ['*'],
+  },
   env: {
     NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
     NEXT_PUBLIC_SPEECH_KEY: process.env.SPEECH_KEY,
