@@ -24,24 +24,10 @@ const Navbar = () => {
   useEffect(() => {
     console.log(user);
   }, [user]);
-  // Function to handle logout
+  // *** LOGOUT BYPASSED FOR TESTING ***
   const handleLogout = async () => {
-    try {
-      let response = null;
-      if (getCookie(constants.AUTH_TOKEN)) {
-        response = await logout();
-      }
-      if (response == null || response.status === 204) {
-        removeCookie(constants.AUTH_TOKEN);
-        removeCookie(constants.REFRESH_TOKEN);
-        removeCookie(constants.JWT_TOKEN);
-        localStorage.removeItem(constants.USER);
-        setUser(null);
-        router.push("/login"); // Redirect to login
-      }
-    } catch (error) {
-      console.error("Logout failed:", error);
-    }
+    console.log("Logout bypassed - authentication disabled for testing");
+    // No logout functionality needed since authentication is bypassed
   };
 
   const navItems = [
@@ -67,9 +53,9 @@ const Navbar = () => {
   }, [pathname, navItems]);
 
   useEffect(() => {
-    const isChatHostname = process.env.NEXT_PUBLIC_CHAT_HOST_NAME.includes(
+    const isChatHostname = process.env.NEXT_PUBLIC_CHAT_HOST_NAME?.includes?.(
       window.location.hostname,
-    );
+    ) || false;
     const isChatPage = pathname.includes("/chatapp");
 
     setNavbarLinksVisible(!isChatHostname && !isChatPage);

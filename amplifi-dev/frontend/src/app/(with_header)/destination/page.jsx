@@ -19,8 +19,10 @@ import { showError, showSuccess } from "@/utils/toastUtils";
 import { decodeToken } from "@/components/utility/decodeJwtToken";
 import { getCookie } from "@/utils/cookieHelper";
 import { constants } from "@/lib/constants";
+import { useUser } from "@/context_api/userContext";
 
 const DestinationPage = () => {
+  const { user } = useUser(); // Get mock user from context
   const [data, setData] = useState([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isDelete, setIsDelete] = useState(false);
@@ -29,13 +31,13 @@ const DestinationPage = () => {
   const [selectedDestination, setSelectedDestination] = useState(null);
   const [loading, setLoading] = useState(true);
   const searchParams = useSearchParams();
-  const [organizationId, setOrganizationId] = useState(null);
+  const [organizationId, setOrganizationId] = useState(user?.clientId || null);
   const [totalPages, setTotalPages] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
-  if (!organizationId) {
-    const token = getCookie(constants.JWT_TOKEN);
-    const userDetails = decodeToken(token);
-    setOrganizationId(userDetails.clientId);
+  
+  // *** AUTHENTICATION BYPASSED - Use mock user data ***
+  if (!organizationId && user?.clientId) {
+    setOrganizationId(user.clientId);
   }
 
   // Fetch the organization_id from the URL search params

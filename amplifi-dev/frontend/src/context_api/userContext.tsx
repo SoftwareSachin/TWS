@@ -1,6 +1,5 @@
 "use client";
 
-import { decodeToken } from "@/components/utility/decodeJwtToken";
 import {
   createContext,
   useContext,
@@ -8,8 +7,9 @@ import {
   useEffect,
   ReactNode,
 } from "react";
-import Cookies from "universal-cookie";
-import { constants } from "@/lib/constants";
+
+// *** AUTHENTICATION BYPASSED FOR TESTING ***
+// Mock user data to bypass authentication
 
 // 1. Define your User type (update fields as needed)
 export interface User {
@@ -25,45 +25,30 @@ interface UserContextType {
   setUser: (user: User | null) => void;
 }
 
+// Mock user data for testing
+const MOCK_USER: User = {
+  email: "test@amplifi.com",
+  clientId: "test-org-123", 
+  roles: ["admin", "developer", "user"]
+};
+
 // 3. Create the context with proper type
 const UserContext = createContext<UserContextType | undefined>(undefined);
 
-// 4. Provider with typed props
+// 4. Provider with typed props - BYPASSED VERSION
 export const UserProvider = ({ children }: { children: ReactNode }) => {
-  const cookies = new Cookies();
-  const [user, setUser] = useState<User | null>(null);
-  const token = cookies.get(constants.JWT_TOKEN);
-  useEffect(() => {
-    // Check localStorage on mount
-    const storedUser = localStorage.getItem(constants.USER);
-    if (storedUser) {
-      try {
-        const parsedUser = JSON.parse(storedUser);
-        setUser(parsedUser);
-      } catch (error) {
-        console.error("UserContext - Error parsing localStorage user:", error);
-      }
-    }
+  const [user, setUser] = useState<User | null>(MOCK_USER);
 
-    const handleStorageChange = (event: StorageEvent) => {
-      if (event.key === constants.USER) {
-        const newUser = event.newValue ? JSON.parse(event.newValue) : null;
-        setUser(newUser);
-      }
-    };
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
   useEffect(() => {
-    if (token) {
-      const userDetails = decodeToken(token) as User;
-      if (userDetails) {
-        setUser(userDetails);
-        // Also update localStorage to keep it in sync
-        localStorage.setItem(constants.USER, JSON.stringify(userDetails));
-      }
+    // Always set mock user for testing
+    console.log("Authentication bypassed - using mock user:", MOCK_USER);
+    setUser(MOCK_USER);
+    
+    // Store mock user in localStorage for consistency
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("amplifi_user", JSON.stringify(MOCK_USER));
     }
-  }, [token]);
+  }, []);
 
   return (
     <UserContext.Provider value={{ user, setUser }}>

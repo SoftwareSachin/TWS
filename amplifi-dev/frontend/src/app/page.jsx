@@ -4,9 +4,9 @@ import { headers } from "next/headers"; // Import headers from next/headers
 
 export async function generateMetadata() {
   // Use next/headers to access the request headers
-  const requestHeaders = headers();
+  const requestHeaders = await headers();
   const hostname = requestHeaders.get("host"); // Extract the 'host' header
-  if (process.env.NEXT_PUBLIC_CHAT_HOST_NAME.includes(hostname)) {
+  if (process.env.NEXT_PUBLIC_CHAT_HOST_NAME && process.env.NEXT_PUBLIC_CHAT_HOST_NAME.includes(hostname)) {
     // If the hostname matches, redirect to the chatapp page
     redirect(`/chatapp`);
   } else {
