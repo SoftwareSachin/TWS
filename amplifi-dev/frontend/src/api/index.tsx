@@ -39,8 +39,8 @@ const errorHandler = async (error: any, instance: any) => {
   return Promise.reject(error);
 };
 
-// Axios instance for v1 pointing to v2 (for backward compatibility)
-const http = axios.create({ baseURL: baseURL.v2 });
+// Axios instance for v1 (for file uploads and workspace operations)
+const http = axios.create({ baseURL: baseURL.v1 });
 http.interceptors.request.use(requestInterceptor, Promise.reject);
 http.interceptors.response.use(
   (response) => response,

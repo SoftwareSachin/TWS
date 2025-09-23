@@ -39,13 +39,13 @@ outputType = "webview"
 name = "Backend"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd amplifi-dev/backend/app && PYTHONPATH=/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages python simple_main.py"
-waitForPort = 8000
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd amplifi-dev/backend/app && python simple_main.py"
+waitForPort = 8000
 
 [[ports]]
 localPort = 5000
@@ -54,14 +54,6 @@ externalPort = 80
 [[ports]]
 localPort = 8000
 externalPort = 8000
-
-[[ports]]
-localPort = 33949
-externalPort = 3000
-
-[[ports]]
-localPort = 38613
-externalPort = 3003
 
 [[ports]]
 localPort = 38735

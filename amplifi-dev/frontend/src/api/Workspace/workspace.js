@@ -5,7 +5,7 @@ export const createWorkspace = (data) => {
 };
 
 export const uploadFile = (data) => {
-  return http.post(`/workspace/${data?.id}/file_upload`, data.body, {
+  return httpV2.post(`/workspace/${data?.id}/file_upload`, data.body, {
     headers: {
       "Content-Type": "multipart/form-data",
     },

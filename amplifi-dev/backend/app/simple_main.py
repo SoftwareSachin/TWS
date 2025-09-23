@@ -61,10 +61,12 @@ async def database_test():
     return await test_database()
 
 # Simple CRUD endpoints for testing functionality
-from fastapi import HTTPException
+from fastapi import HTTPException, UploadFile
 from typing import List, Dict, Optional
 from pydantic import BaseModel
 from datetime import datetime, timezone
+import tempfile
+import shutil
 
 # Simple in-memory data store for testing (in production, use real database)
 users_db: Dict[int, Dict] = {}
@@ -292,6 +294,51 @@ async def get_organization(organization_id: str):
         "name": "Test Organization",
         "status": "active",
         "created_at": datetime.now(timezone.utc).isoformat()
+    }
+
+@app.post("/api/v2/workspace/{workspace_id}/file_upload")
+async def upload_file(workspace_id: str, files: List[UploadFile]):
+    """File upload endpoint for workspace"""
+    if not files:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    uploaded_files = []
+    
+    for file in files:
+        try:
+            # Create a temporary file to save uploaded content
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f"_{file.filename}") as temp_file:
+                # Copy uploaded file content to temp file
+                shutil.copyfileobj(file.file, temp_file)
+                temp_file_path = temp_file.name
+            
+            # Mock file record for response
+            file_record = {
+                "id": f"file-{abs(hash(file.filename)) % 10000}",
+                "filename": file.filename,
+                "mimetype": file.content_type or "application/octet-stream",
+                "size": file.size or 0,
+                "status": "Uploaded",
+                "workspace_id": workspace_id,
+                "upload_time": datetime.now(timezone.utc).isoformat(),
+                "file_path": temp_file_path
+            }
+            
+            uploaded_files.append(file_record)
+            
+        except Exception as e:
+            # Handle individual file upload errors
+            uploaded_files.append({
+                "filename": file.filename,
+                "mimetype": file.content_type or "application/octet-stream", 
+                "size": file.size or 0,
+                "status": "Failed",
+                "error": str(e)
+            })
+    
+    return {
+        "data": uploaded_files,
+        "message": "Files processed."
     }
 
 @app.get("/v2/my_chat_app")
