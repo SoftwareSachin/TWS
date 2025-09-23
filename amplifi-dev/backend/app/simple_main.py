@@ -167,6 +167,88 @@ async def delete_user(user_id: int):
     del users_db[user_id]
     return {"message": "User deleted successfully"}
 
+# ==================== API V1 ENDPOINTS ====================
+# Organization-based endpoints that the frontend expects (v1 paths)
+
+@app.get("/api/v1/organization/{organization_id}/workspace")
+async def get_workspaces_v1(organization_id: str):
+    """Get all workspaces for an organization (v1 endpoint)"""
+    if organization_id not in workspaces_db:
+        workspaces_db[organization_id] = [
+            {
+                "id": "workspace-1", 
+                "name": "Main Workspace",
+                "description": "Primary workspace for data analysis",
+                "status": "active",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+        ]
+    return {"data": workspaces_db[organization_id], "message": "Workspaces retrieved successfully"}
+
+@app.post("/api/v1/organization/{organization_id}/workspace") 
+async def create_workspace_v1(organization_id: str, workspace_data: dict):
+    """Create a new workspace for an organization (v1 endpoint)"""
+    if organization_id not in workspaces_db:
+        workspaces_db[organization_id] = []
+    
+    new_workspace = {
+        "id": f"workspace-{len(workspaces_db[organization_id]) + 1}",
+        "name": workspace_data.get("name", "New Workspace"),
+        "description": workspace_data.get("description", ""),
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    workspaces_db[organization_id].append(new_workspace)
+    return {"data": new_workspace, "message": "Workspace created successfully"}
+
+@app.get("/api/v1/organization/{organization_id}/dataset")
+async def get_datasets_v1(organization_id: str):
+    """Get all datasets for an organization (v1 endpoint)"""
+    if organization_id not in datasets_db:
+        datasets_db[organization_id] = [
+            {
+                "id": "dataset-1",
+                "name": "Sample Dataset", 
+                "description": "Sample data for testing",
+                "status": "ready",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "size": "1.2MB",
+                "records": 1500
+            }
+        ]
+    return {"data": datasets_db[organization_id], "message": "Datasets retrieved successfully"}
+
+@app.get("/api/v1/organization/{organization_id}/destination")
+async def get_destinations_v1(organization_id: str):
+    """Get all destinations for an organization (v1 endpoint)"""
+    if organization_id not in destinations_db:
+        destinations_db[organization_id] = [
+            {
+                "id": "dest-1",
+                "name": "Sample Destination",
+                "type": "database",
+                "status": "connected", 
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "config": {"host": "localhost", "port": 5432}
+            }
+        ]
+    return {"data": destinations_db[organization_id], "message": "Destinations retrieved successfully"}
+
+@app.get("/api/v1/organization/{organization_id}/workflow")
+async def get_workflows_v1(organization_id: str):
+    """Get all workflows for an organization (v1 endpoint)"""
+    if organization_id not in workflows_db:
+        workflows_db[organization_id] = [
+            {
+                "id": "workflow-1",
+                "name": "Data Processing Pipeline",
+                "description": "Automated data processing and analysis",
+                "status": "running",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+        ]
+    return {"data": workflows_db[organization_id], "message": "Workflows retrieved successfully"}
+
 # ==================== API V2 ENDPOINTS ====================
 # Organization-based endpoints that the frontend expects
 
