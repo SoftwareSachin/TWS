@@ -235,6 +235,22 @@ async def get_workspaces(organization_id: str):
         ]
     return {"data": workspaces_db[organization_id], "message": "Workspaces retrieved successfully"}
 
+@app.post("/v2/organization/{organization_id}/workspace")
+async def create_workspace(organization_id: str, workspace_data: dict):
+    """Create a new workspace for an organization"""
+    if organization_id not in workspaces_db:
+        workspaces_db[organization_id] = []
+    
+    new_workspace = {
+        "id": f"workspace-{len(workspaces_db[organization_id]) + 1}",
+        "name": workspace_data.get("name", "New Workspace"),
+        "description": workspace_data.get("description", ""),
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    workspaces_db[organization_id].append(new_workspace)
+    return {"data": new_workspace, "message": "Workspace created successfully"}
+
 @app.get("/v2/organization/{organization_id}/workflow")
 async def get_workflows(organization_id: str):
     """Get all workflows for an organization"""
