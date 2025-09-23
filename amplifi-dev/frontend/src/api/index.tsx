@@ -7,8 +7,8 @@ import { decodeToken } from "@/components/utility/decodeJwtToken";
 const cookies = new Cookies();
 
 export const baseURL = {
-  v1: `${process.env.NEXT_PUBLIC_BASE_URL}/v1`,
-  v2: `${process.env.NEXT_PUBLIC_BASE_URL}/v2`,
+  v1: `https://f8274a5f-100f-4c7b-add5-dfe41a5481b7-00-17jywrdgr4q1b.janeway.replit.dev:8000/v1`,
+  v2: `https://f8274a5f-100f-4c7b-add5-dfe41a5481b7-00-17jywrdgr4q1b.janeway.replit.dev:8000/v2`,
 };
 
 let isRefreshing = false;
