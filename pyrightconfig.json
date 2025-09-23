@@ -1,0 +1,9 @@
+{
+  "extraPaths": [
+    "/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages"
+  ],
+  "pythonPath": "/nix/store/zz7i75jb78idaz0rb1y1i4rzdyxq28vf-sitecustomize/bin/python",
+  "include": [
+    "amplifi-dev/backend/app"
+  ]
+}

@@ -41,12 +41,11 @@ const WorkspacePage = () => {
     setHasMounted(true);
   }, []);
 
-  // Only access token + userDetails after mount
-  const token = hasMounted ? getCookie(constants.JWT_TOKEN) : null;
-  const userDetails = hasMounted && token ? decodeToken(token) : null;
+  // AUTHENTICATION BYPASSED - Use mock data instead of tokens
+  const token = hasMounted ? "mock-token" : null;
+  const userDetails = hasMounted ? { clientId: "test-org-123", email: "test@amplifi.com" } : null;
   const [searchText, setSearchText] = useState("");
 
-  // Redirect if user is not logged in
 
   useEffect(() => {
     if (hasMounted) {
@@ -56,12 +55,14 @@ const WorkspacePage = () => {
       }
     }
   }, [hasMounted]);
-  useEffect(() => {
-    if (hasMounted && (!token || !userDetails)) {
-      showError("Session expired. Please login again.");
-      router.push("/login");
-    }
-  }, [hasMounted, token, userDetails]);
+  
+  // Authentication bypassed - no redirect needed
+  // useEffect(() => {
+  //   if (hasMounted && (!token || !userDetails)) {
+  //     showError("Session expired. Please login again.");
+  //     router.push("/login");
+  //   }
+  // }, [hasMounted, token, userDetails]);
 
   // Handle pagination from query params
   const page = searchParams.get("page");
@@ -108,11 +109,8 @@ const WorkspacePage = () => {
           getWorkspaceList(); // Retry once
           setExpiredToken(true);
         } else {
-          showError("Session expired. Please login again.");
-          removeCookie(constants.JWT_TOKEN);
-          removeCookie(constants.AUTH_TOKEN);
-          removeCookie(constants.REFRESH_TOKEN);
-          router.push("/login");
+          // Authentication bypassed - show generic error instead
+          showError("Unable to load workspace data. Please try again.");
         }
       } else {
         showError(errMsg || "Failed to fetch workspace.");
