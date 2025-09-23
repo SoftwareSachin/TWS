@@ -179,7 +179,7 @@ const MultiStepForm = () => {
                     <FormItem>
                       <FormLabel>Workspace Name</FormLabel>
                       <FormControl>
-                        <>
+                        <div>
                           <Input
                             placeholder="Enter your workspace name"
                             value={field.value}
@@ -188,7 +188,7 @@ const MultiStepForm = () => {
                           <div className="text-sm text-right text-gray-500 mt-1">
                             {charCount}/{WORKSPACE_NAME_MAX_LENGTH} characters
                           </div>
-                        </>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>

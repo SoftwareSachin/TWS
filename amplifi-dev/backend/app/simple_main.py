@@ -3,12 +3,22 @@
 Simple FastAPI server for testing in Replit environment
 """
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 import os
 import asyncpg
 import asyncio
 
 # Simple FastAPI app for testing - NO MIDDLEWARE OR AUTHENTICATION
 app = FastAPI(title="Amplifi API - Development", version="1.0.0")
+
+# Add CORS middleware to allow frontend requests
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Allow all origins for development
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+)
 
 async def test_database():
     """Test database connectivity"""
@@ -54,7 +64,7 @@ async def database_test():
 from fastapi import HTTPException
 from typing import List, Dict, Optional
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Simple in-memory data store for testing (in production, use real database)
 users_db: Dict[int, Dict] = {}
@@ -114,7 +124,7 @@ async def create_user(user: UserCreate):
         "email": user.email,
         "name": user.name,
         "is_active": user.is_active,
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
     users_db[next_user_id] = user_data
     next_user_id += 1
@@ -167,7 +177,7 @@ async def get_destinations(organization_id: str):
                 "name": "Sample Destination",
                 "type": "database",
                 "status": "connected",
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "config": {"host": "localhost", "port": 5432}
             }
         ]
@@ -184,7 +194,7 @@ async def create_destination(organization_id: str, destination_data: dict):
         "name": destination_data.get("name", "New Destination"),
         "type": destination_data.get("type", "database"),
         "status": "pending",
-        "created_at": datetime.utcnow().isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "config": destination_data.get("config", {})
     }
     destinations_db[organization_id].append(new_destination)
@@ -219,7 +229,7 @@ async def get_workspaces(organization_id: str):
                 "name": "Main Workspace",
                 "description": "Primary workspace for data analysis",
                 "status": "active",
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat()
             }
         ]
     return {"data": workspaces_db[organization_id], "message": "Workspaces retrieved successfully"}
@@ -234,7 +244,7 @@ async def get_workflows(organization_id: str):
                 "name": "Data Processing Pipeline",
                 "description": "Automated data processing and analysis",
                 "status": "running",
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat()
             }
         ]
     return {"data": workflows_db[organization_id], "message": "Workflows retrieved successfully"}
@@ -249,7 +259,7 @@ async def get_datasets(organization_id: str):
                 "name": "Sample Dataset",
                 "description": "Sample data for testing",
                 "status": "ready",
-                "created_at": datetime.utcnow().isoformat(),
+                "created_at": datetime.now(timezone.utc).isoformat(),
                 "size": "1.2MB",
                 "records": 1500
             }
@@ -264,7 +274,7 @@ async def get_organization(organization_id: str):
         "id": organization_id,
         "name": "Test Organization",
         "status": "active",
-        "created_at": datetime.utcnow().isoformat()
+        "created_at": datetime.now(timezone.utc).isoformat()
     }
 
 if __name__ == "__main__":
