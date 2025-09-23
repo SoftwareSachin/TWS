@@ -70,4 +70,4 @@ externalPort = 3001
 [deployment]
 deploymentTarget = "autoscale"
 run = ["bash", "-c", "cd amplifi-dev/backend/app && PYTHONPATH=/home/runner/workspace/.pythonlibs/lib/python3.12/site-packages python simple_main.py & cd amplifi-dev/frontend && npm run start"]
-build = ["npm", "run", "build"]
+build = ["bash", "-c", "cd amplifi-dev/frontend && npm run build"]
