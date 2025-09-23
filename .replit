@@ -59,6 +59,10 @@ externalPort = 8000
 localPort = 33413
 externalPort = 3000
 
+[[ports]]
+localPort = 36775
+externalPort = 3001
+
 [deployment]
 deploymentTarget = "autoscale"
 run = ["bash", "-c", "cd amplifi-dev/frontend && npm run start"]

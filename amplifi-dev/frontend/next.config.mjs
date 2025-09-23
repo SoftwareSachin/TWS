@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
-    domains: ["api.loginradius.com"],
     remotePatterns: [
       {
         protocol: "https",
@@ -10,6 +9,8 @@ const nextConfig = {
     ],
   },
   reactStrictMode: true,
+  // Allow all dev origins for Replit proxy compatibility
+  allowedDevOrigins: ['*'],
   env: {
     NEXT_PUBLIC_BASE_URL: process.env.NEXT_PUBLIC_BASE_URL,
     NEXT_PUBLIC_SPEECH_KEY: process.env.SPEECH_KEY,
