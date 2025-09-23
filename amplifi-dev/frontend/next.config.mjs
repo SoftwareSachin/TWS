@@ -24,36 +24,37 @@ const nextConfig = {
   async headers() {
     return [
       {
-        // Apply security headers to all routes
+        // Apply security headers to all routes with CORS and host bypass for Replit
         source: "/(.*)",
         headers: [
-          // Strict Transport Security (HSTS)
+          // CORS headers for Replit proxy
           {
-            key: "Strict-Transport-Security",
-            value: "max-age=31536000; includeSubDomains; preload",
+            key: 'Access-Control-Allow-Origin',
+            value: '*',
           },
-          // Content Security Policy
+          {
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, POST, PUT, DELETE, OPTIONS',
+          },
+          {
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
+          },
+          // Content Security Policy - relaxed for Replit
           {
             key: "Content-Security-Policy",
             value: [
-              "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https://cdn.jsdelivr.net https://unpkg.com https://cdn.plot.ly https://cdnjs.cloudflare.com https://us-assets.i.posthog.com https://us.i.posthog.com https://*.posthog.com https://*.posthog.io",
-              "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net",
-              "img-src 'self' data: blob: https: http:",
-              "font-src 'self' https://fonts.gstatic.com data:",
-              "connect-src 'self' http://localhost:8085 https://*.dataamplifi.com https://*.posthog.com https://*.posthog.io https://edge.api.flagsmith.com https://*.flagsmith.com https://*.tile.openstreetmap.org https://tile.openstreetmap.org https://cdn.plot.ly wss: ws:",
-              "frame-src 'self'",
+              "default-src 'self' *",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' blob: https: *",
+              "style-src 'self' 'unsafe-inline' https: *",
+              "img-src 'self' data: blob: https: http: *",
+              "font-src 'self' https: data: *",
+              "connect-src 'self' http: https: ws: wss: *",
+              "frame-src 'self' *",
               "object-src 'none'",
               "base-uri 'self'",
               "form-action 'self'",
-              "frame-ancestors 'none'",
-              "upgrade-insecure-requests",
             ].join("; "),
-          },
-          // X-Frame-Options
-          {
-            key: "X-Frame-Options",
-            value: "DENY",
           },
           // X-Content-Type-Options
           {
@@ -64,26 +65,6 @@ const nextConfig = {
           {
             key: "Referrer-Policy",
             value: "strict-origin-when-cross-origin",
-          },
-          // Permissions Policy
-          {
-            key: "Permissions-Policy",
-            value: [
-              "camera=()",
-              "microphone=(self)",
-              "geolocation=()",
-              "interest-cohort=()",
-              "payment=()",
-              "usb=()",
-              "magnetometer=()",
-              "gyroscope=()",
-              "accelerometer=()",
-            ].join(", "),
-          },
-          // X-XSS-Protection (for older browsers)
-          {
-            key: "X-XSS-Protection",
-            value: "1; mode=block",
           },
         ],
       },
