@@ -215,7 +215,7 @@ const MultiStepForm = () => {
                     <FormItem>
                       <FormLabel>Description (Optional)</FormLabel>
                       <FormControl>
-                        <>
+                        <div>
                           <Textarea
                             id="description"
                             placeholder="Description"
@@ -226,7 +226,7 @@ const MultiStepForm = () => {
                           <div className="text-sm text-right text-gray-500 mt-1">
                             {charCount}/{DECSRIPTION_MAX_LENGTH} characters
                           </div>
-                        </>
+                        </div>
                       </FormControl>
                       <FormMessage />
                     </FormItem>
