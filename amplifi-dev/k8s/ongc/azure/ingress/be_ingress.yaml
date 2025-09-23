@@ -1,0 +1,34 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: amplifi-backend
+  namespace: amplifi-dev
+  annotations:
+    kubernetes.io/ingress.class: azure/application-gateway
+    appgw.ingress.kubernetes.io/ssl-redirect: "true"
+    appgw.ingress.kubernetes.io/appgw-ssl-certificate: "Cert_wildcard_dataamplify"
+#    appgw.ingress.kubernetes.io/backend-protocol: "https"
+spec:
+  ingressClassName: azure-application-gateway
+#  defaultBackend:
+#    service:
+#      name: fastapi-service
+#      port:
+#        number: 8000
+  rules:
+    - http:
+        paths:
+          - path: /api/*
+            pathType: Prefix
+            backend:
+              service:
+                name: fastapi-service
+                port:
+                  number: 8000
+          - path: /docs
+            pathType: Prefix
+            backend:
+              service:
+                name: fastapi-service
+                port:
+                  number: 8000

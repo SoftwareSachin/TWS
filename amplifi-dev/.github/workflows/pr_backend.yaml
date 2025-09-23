@@ -1,0 +1,88 @@
+name: PR CI - Backend
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths: ["backend/**"]
+    branches:
+      - dev
+      - master
+
+  workflow_dispatch:
+
+jobs:
+  check-code-quality:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python # Set Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+
+      - name: Install the project dependencies
+        run: |
+          cd backend/app
+          poetry install
+          
+      - name: Run isort to check import sorting
+        run: |
+          cd backend/app
+          poetry run isort --check --diff app
+
+      - name: Run Black to check code style
+        run: |
+          cd backend/app
+          poetry run black --check --verbose app 
+
+      - name: Lint with Ruff
+        uses: chartboost/ruff-action@v1
+        with:
+          src: './backend/app/app'
+
+      - name: Run Bandit for security vulnerability
+        run: |
+          cd backend/app
+          poetry run bandit -r . -c pyproject.toml
+
+      - name: Install Radon
+        run: |
+          cd backend/app
+          poetry add radon
+
+      - name: Run Radon Complexity Analysis
+        run: |
+          cd backend/app
+          poetry run radon cc . -nc -e "test/*, load-test/*" -s -j --total-average > ../../radon_report.json
+
+      - name: Format Radon Output
+        id: format_report
+        run: |
+          echo "### 📊 Radon Code Complexity Report" > radon_summary.md
+          echo "| File | Function | Complexity | Category |" >> radon_summary.md
+          echo "|------|----------|------------|----------|" >> radon_summary.md
+          
+          jq -r 'to_entries[] | .key as $file | .value[] | "| \($file) | \(.name) | **\(.complexity)** | \(.rank) |"' radon_report.json >> radon_summary.md
+          
+          echo "" >> radon_summary.md
+          echo "_Note: Higher complexity (>10) may indicate refactoring is needed._" >> radon_summary.md
+          
+          echo "RADON_REPORT<<EOF" >> $GITHUB_ENV
+          cat radon_summary.md >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Comment PR with Radon Results
+        uses: mshick/add-pr-comment@v2
+        with:
+          message: "${{ env.RADON_REPORT }}"
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          allow-repeats: false
+

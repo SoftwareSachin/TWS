@@ -1,0 +1,101 @@
+name: Docusaurus App CI/CD Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version name (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - prod
+          - cch-prod
+  push:
+    tags: [ 'v[0-9]+.[0-9]+.[0-9]+*' ]
+    paths:
+      - docusaurus/**
+  pull_request:
+    branches: [ main ]
+    paths:
+      - docusaurus/**
+
+jobs:
+  build_and_deploy_job:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || (contains(github.ref_name, 'cch-prod') && 'cch-prod' || 'prod') }}
+    name: Build and Deploy Job
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: false
+          ref: ${{ github.event.inputs.version || github.ref }}
+
+      - name: Determine environment and directory
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ENV_DIR=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
+            if [ "${{ github.event.inputs.environment }}" = "prod" ]; then
+              echo "GH_ENV=prod" >> $GITHUB_ENV
+              echo "STATIC_WEB_APP_NAME=amplifi-docs-prod" >> $GITHUB_ENV
+            else
+              echo "GH_ENV=customer-prod" >> $GITHUB_ENV
+              echo "STATIC_WEB_APP_NAME=stapp-amplifi-doc-prod-100" >> $GITHUB_ENV
+            fi
+            echo "TAG=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          else
+            TAG_SUFFIX=$(echo "${{ github.ref_name }}" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' | cut -d'-' -f2 || echo "")
+            case "$TAG_SUFFIX" in
+              "")
+                echo "ENV_DIR=prod" >> $GITHUB_ENV
+                echo "GH_ENV=prod" >> $GITHUB_ENV
+                echo "STATIC_WEB_APP_NAME=amplifi-docs-prod" >> $GITHUB_ENV
+                ;;
+              prod)
+                echo "ENV_DIR=prod" >> $GITHUB_ENV
+                echo "GH_ENV=prod" >> $GITHUB_ENV
+                echo "STATIC_WEB_APP_NAME=amplifi-docs-prod" >> $GITHUB_ENV
+                ;;
+              cch-prod)
+                echo "ENV_DIR=cch-prod" >> $GITHUB_ENV
+                echo "GH_ENV=cch-prod" >> $GITHUB_ENV
+                echo "STATIC_WEB_APP_NAME=stapp-amplifi-doc-prod-100" >> $GITHUB_ENV
+                ;;
+              *)
+                echo "Invalid tag suffix: $TAG_SUFFIX"
+                exit 1
+                ;;
+            esac
+            echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+          fi
+
+      - name: Build And Deploy
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APP_DOCUSAURUS_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: "upload"
+          app_location: "./docusaurus"
+          api_location: ""
+          output_location: "build"
+        env:
+          environment: ${{ env.GH_ENV }}
+
+#  close_pull_request_job:
+#    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+#    runs-on: ubuntu-latest
+#    name: Close Pull Request Job
+#    environment: prod  # Default to prod for PRs
+#    steps:
+#      - name: Close Pull Request
+#        id: closepullrequest
+#        uses: Azure/static-web-apps-deploy@v1
+#        with:
+#          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APP_DOCUSAURUS_TOKEN }}
+#          action: "close"

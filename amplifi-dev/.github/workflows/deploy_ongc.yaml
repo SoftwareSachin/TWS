@@ -1,0 +1,118 @@
+name: DEV[:] Deploy Amplifi on ONGC
+
+on:
+  workflow_dispatch:
+#  push:
+#    branches: [ "dev" ]
+#    paths: ['backend/**']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: ongc
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python # Set Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+
+      - name: Install the project dependencies
+        run: |
+          cd backend/app
+          poetry install
+
+#      - name: Run Black to check code style
+#        run: |
+#          cd backend/app
+#          poetry run black --check --verbose app
+#
+#      - name: Lint with Ruff
+#        uses: chartboost/ruff-action@v1
+#        with:
+#          src: './backend/app/app'
+#
+#      - name: Run Bandit for security vulnerability
+#        run: |
+#          cd backend/app
+#          poetry run bandit -r . -c pyproject.toml
+
+#      - name: Test with pytest
+#        run: pytest * --doctest-modules --junitxml=junit/test-results-${{ matrix.python-version }}.xml
+#        working-directory: ./orthanc
+#        continue-on-error: true
+#
+#      - name: Upload pytest test results
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: pytest-results-${{ matrix.python-version }}
+#          path: junit/test-results-${{ matrix.python-version }}.xml
+#        # Use always() to always run this step to publish test results when there are test failures
+#        if: ${{ always() }}
+
+      - name: 'Docker Login'
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build fastapi-server, celery-worker, celery-beat images and push them to ACR
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/k8s.Dockerfile
+          push: true
+          tags:
+            |
+            ${{ secrets.REGISTRY_LOGIN_SERVER }}/amplifi-fastapi-server:${{ github.ref_name }}-${{ github.sha }},
+            ${{ secrets.REGISTRY_LOGIN_SERVER }}/amplifi-celery-worker:${{ github.ref_name }}-${{ github.sha }},
+            ${{ secrets.REGISTRY_LOGIN_SERVER }}/amplifi-celery-beat:${{ github.ref_name }}-${{ github.sha }}
+
+  modify-amplifi-gitops:
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      GITOPS_REPO: https://x-access-token:${{ secrets.GITOPS_PAT }}@github.com/thoughtswinsystems/amplifi-gitops.git
+      GITOPS_REPO_NAME: amplifi-gitops
+    steps:
+      - name: Clone GitOps repo
+        run: |
+          git clone $GITOPS_REPO
+          cd $GITOPS_REPO_NAME
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Update image version in fastapi-server manifest
+        run: |
+          cd $GITOPS_REPO_NAME
+          cd envs/ongc/azure/code
+          sed -i 's#image: .*#image: crAmplifiProd.azurecr.io/amplifi-fastapi-server:${{ github.ref_name }}-${{ github.sha }}#g' fastapi-server-deployment.yaml
+
+      - name: Update image version in celery manifest
+        run: |
+          cd $GITOPS_REPO_NAME
+          cd envs/ongc/azure/celery
+          sed -i 's#image: .*#image: crAmplifiProd.azurecr.io/amplifi-celery-worker:${{ github.ref_name }}-${{ github.sha }}#g' celery-default-worker-deployment.yaml
+          sed -i 's#image: .*#image: crAmplifiProd.azurecr.io/amplifi-celery-worker:${{ github.ref_name }}-${{ github.sha }}#g' celery-ingestion-worker-deployment.yaml
+          sed -i 's#image: .*#image: crAmplifiProd.azurecr.io/amplifi-celery-beat:${{ github.ref_name }}-${{ github.sha }}#g' celery-beat-deployment.yaml
+
+      - name: Commit and push changes
+        run: |
+          cd $GITOPS_REPO_NAME
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add envs/ongc/azure/code/fastapi-server-deployment.yaml
+          git add envs/ongc/azure/celery/celery-default-worker-deployment.yaml
+          git add envs/ongc/azure/celery/celery-ingestion-worker-deployment.yaml
+          git add envs/ongc/azure/celery/celery-beat-deployment.yaml
+          git commit -m "Update image version in deployment manifests"
+          git push

@@ -1,0 +1,42 @@
+name: PR CI - Frontend
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths: ["frontend/**"]
+    branches:
+      - dev
+      - master
+
+  workflow_dispatch:
+
+jobs:
+  frontend_quality_check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Run Report
+        id: report
+        uses: bearer/bearer-action@v2
+        with:
+          path: './frontend/src'
+          severity: critical,high
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.18.0
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Run ESLint
+        working-directory: frontend
+        run: npx eslint . --ext .js,.jsx,.ts,.tsx
+
+      - name: Run Prettier Check
+        working-directory: frontend
+        run: npx prettier --check .

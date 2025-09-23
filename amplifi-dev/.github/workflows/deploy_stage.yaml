@@ -1,0 +1,132 @@
+name: Stage[:] Deploy Amplifi
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "release/**" ]
+    paths: ['backend/**', '.github/workflows/deploy_stage.yaml']
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: stage
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python # Set Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install poetry
+        uses: abatilo/actions-poetry@v2
+
+      - name: Install the project dependencies
+        run: |
+          cd backend/app
+          poetry install
+
+      - name: Run Black to check code style
+        run: |
+          cd backend/app
+          poetry run black --check --verbose app
+
+      - name: Lint with Ruff
+        uses: chartboost/ruff-action@v1
+        with:
+          src: './backend/app/app'
+
+      - name: Run Bandit for security vulnerability
+        run: |
+          cd backend/app
+          poetry run bandit -r . -c pyproject.toml
+
+#      - name: Test with pytest
+#        run: pytest * --doctest-modules --junitxml=junit/test-results-${{ matrix.python-version }}.xml
+#        working-directory: ./orthanc
+#        continue-on-error: true
+#
+#      - name: Upload pytest test results
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: pytest-results-${{ matrix.python-version }}
+#          path: junit/test-results-${{ matrix.python-version }}.xml
+#        # Use always() to always run this step to publish test results when there are test failures
+#        if: ${{ always() }}
+
+      - name: 'Docker Login'
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Sanitize ref name for Docker tag
+        id: sanitize_tag
+        run: echo "TAG=${GITHUB_REF_NAME//\//-}" >> $GITHUB_ENV
+
+      - name: Build fastapi-server, celery-worker, celery-beat images and push them to ACR
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: ./backend/k8s.Dockerfile
+          push: true
+          tags:
+            |
+            ${{ secrets.REGISTRY_LOGIN_SERVER }}/amplifi-fastapi-server:${{ env.TAG }}-${{ github.sha }},
+            ${{ secrets.REGISTRY_LOGIN_SERVER }}/amplifi-celery-worker:${{ env.TAG }}-${{ github.sha }},
+            ${{ secrets.REGISTRY_LOGIN_SERVER }}/amplifi-celery-beat:${{ env.TAG }}-${{ github.sha }}
+
+  modify-amplifi-gitops:
+    needs: build
+    runs-on: ubuntu-latest
+
+    env:
+      GITOPS_REPO: https://x-access-token:${{ secrets.GITOPS_PAT }}@github.com/thoughtswinsystems/amplifi-gitops.git
+      GITOPS_REPO_NAME: amplifi-gitops
+    steps:
+      - name: Clone GitOps repo
+        run: |
+          git clone $GITOPS_REPO
+          cd $GITOPS_REPO_NAME
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+
+      - name: Sanitize ref name for Docker tag
+        id: sanitize_tag
+        run: echo "TAG=${GITHUB_REF_NAME//\//-}" >> $GITHUB_ENV
+
+      - name: Update image version in fastapi-server manifest
+        run: |
+          cd $GITOPS_REPO_NAME
+          cd envs/stage/azure/code
+          sed -i 's#image: .*#image: cramplifistage.azurecr.io/amplifi-fastapi-server:${{ env.TAG }}-${{ github.sha }}#g' fastapi-server-deployment.yaml
+
+
+      - name: Update image version in celery manifest
+        run: |
+          cd $GITOPS_REPO_NAME
+          cd envs/stage/azure/celery
+          sed -i 's#image: .*#image: cramplifistage.azurecr.io/amplifi-celery-worker:${{ env.TAG }}-${{ github.sha }}#g' celery-default-worker-deployment.yaml
+          sed -i 's#image: .*#image: cramplifistage.azurecr.io/amplifi-celery-worker:${{ env.TAG }}-${{ github.sha }}#g' celery-ingestion-worker-deployment.yaml
+          sed -i 's#image: .*#image: cramplifistage.azurecr.io/amplifi-celery-worker:${{ env.TAG }}-${{ github.sha }}#g' celery-file-compression-worker-deployment.yaml
+          sed -i 's#image: .*#image: cramplifistage.azurecr.io/amplifi-celery-worker:${{ env.TAG }}-${{ github.sha }}#g' celery-ingestion-gpu-worker-deployment.yaml
+          sed -i 's#image: .*#image: cramplifistage.azurecr.io/amplifi-celery-beat:${{ env.TAG }}-${{ github.sha }}#g' celery-beat-deployment.yaml
+
+      - name: Commit and push changes
+        run: |
+          cd $GITOPS_REPO_NAME
+          git config user.email "actions@github.com"
+          git config user.name "GitHub Actions"
+          git add envs/stage/azure/code/fastapi-server-deployment.yaml
+          git add envs/stage/azure/celery/celery-default-worker-deployment.yaml
+          git add envs/stage/azure/celery/celery-ingestion-worker-deployment.yaml
+          git add envs/stage/azure/celery/celery-file-compression-worker-deployment.yaml
+          git add envs/stage/azure/celery/celery-ingestion-gpu-worker-deployment.yaml
+          git add envs/stage/azure/celery/celery-beat-deployment.yaml
+          git commit -m "Update image version in deployment manifests"
+          git push
+

@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: amplifi
+  name: fastapi-server
+  namespace: amplifi-dev
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: fastapi-server
+  template:
+    metadata:
+      labels:
+        app: fastapi-server
+    spec:
+      containers:
+        - args:
+            - sh
+            - -c
+            - uvicorn app.main:app --loop asyncio --host 0.0.0.0 --port 8000
+          envFrom:
+            - configMapRef:
+                name: fastapi-config
+            - secretRef:
+                name: fastapi-secret
+          image: crAmplifiProd.azurecr.io/amplifi-fastapi-server:dev-f21ee1dd5bab8ca08c8062e09e870f19d8e1d645
+          imagePullPolicy: Always
+          name: fastapi-server
+          ports:
+            - containerPort: 8000
+              protocol: TCP
+          readinessProbe:
+            httpGet:
+              port: 8000
+              path: /docs
+            initialDelaySeconds: 15
+          livenessProbe:
+            httpGet:
+              port: 8000
+              path: /docs
+            initialDelaySeconds: 15
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "0.5"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          volumeMounts:
+            - mountPath: /app/uploads
+              name: fastapi-volume-mount
+            - mountPath: /app/table-extraction-data
+              name: fastapi-volume-mount-table-extraction
+      restartPolicy: Always
+      volumes:
+        - name: fastapi-volume-mount
+          persistentVolumeClaim:
+            claimName: pvc-blob
+        - name: fastapi-volume-mount-table-extraction
+          persistentVolumeClaim:
+            claimName: pvc-blob-table-extraction

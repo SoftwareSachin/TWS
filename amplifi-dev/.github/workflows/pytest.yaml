@@ -1,0 +1,216 @@
+name: Pytest
+
+on:
+  pull_request:
+    branches:
+      - dev
+      - master
+    paths: ["backend/**"]
+
+  workflow_dispatch:
+
+jobs:
+  run_pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: pytest
+    strategy:
+      matrix:
+        python-version: ["3.12"]
+    env:  # Set environment variables here
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      PROJECT_NAME: ${{ secrets.PROJECT_NAME }}
+      FIRST_SUPERUSER_PASSWORD: ${{ secrets.FIRST_SUPERUSER_PASSWORD }}
+      FIRST_SUPERUSER_EMAIL: ${{ secrets.FIRST_SUPERUSER_EMAIL }}
+      ENCRYPT_KEY: ${{ secrets.ENCRYPT_KEY }}
+      BACKEND_CORS_ORIGINS: ${{ secrets.BACKEND_CORS_ORIGINS }}
+      DATABASE_HOST: ${{ secrets.DATABASE_HOST }}
+      DATABASE_USER: ${{ secrets.DATABASE_USER }}
+      DATABASE_PASSWORD: ${{ secrets.DATABASE_PASSWORD }}
+      DATABASE_NAME: ${{ secrets.DATABASE_NAME }}
+      DATABASE_CELERY_NAME: ${{ secrets.DATABASE_CELERY_NAME }}
+      DATABASE_PORT: ${{ secrets.DATABASE_PORT }}
+      EXT_ENDPOINT1: ${{ secrets.EXT_ENDPOINT1 }}
+      LOCAL_1: ${{ secrets.LOCAL_1 }}
+      LOCAL_2: ${{ secrets.LOCAL_2 }}
+      REDIS_HOST: ${{ secrets.REDIS_HOST }}
+      REDIS_PORT: ${{ secrets.REDIS_PORT }}
+      RABBITMQ_HOST: ${{ secrets.RABBITMQ_HOST }}
+      RABBITMQ_PORT: ${{ secrets.RABBITMQ_PORT }}
+      RABBITMQ_USER: ${{ secrets.RABBITMQ_USER }}
+      RABBITMQ_PASSWORD: ${{ secrets.RABBITMQ_PASSWORD }}
+      R2R_URL: ${{ secrets.R2R_URL }}
+      R2R_USER: ${{ secrets.R2R_USER }}
+      R2R_PASS: ${{ secrets.R2R_PASS }}
+      AZURE_OPENAI_API_KEY: ${{ secrets.AZURE_OPENAI_API_KEY }}
+      AZURE_BASE_URL: ${{ secrets.AZURE_BASE_URL }}
+      AZURE_API_VERSION: ${{ secrets.AZURE_API_VERSION }}
+      VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+      VAULT_TOKEN: ${{ secrets.VAULT_TOKEN }}
+      VAULT_SECRET_PATH: ${{ secrets.VAULT_SECRET_PATH }}
+      UPLOAD_FOLDER: ${{ secrets.UPLOAD_FOLDER }}
+      TABLE_EXTRACTION_DATA_PATH: ${{ secrets.TABLE_EXTRACTION_DATA_PATH }}
+      LOGINRADIUS_API_KEY: ${{ secrets.LOGINRADIUS_API_KEY }}
+      LOGINRADIUS_API_SECRET: ${{ secrets.LOGINRADIUS_API_SECRET }}
+      AZURE_GPT_4o_KEY: ${{ secrets.AZURE_GPT_4o_KEY }}
+      AZURE_GPT_4o_URL: ${{ secrets.AZURE_GPT_4o_URL }}
+      AZURE_GPT_4o_VERSION: ${{ secrets.AZURE_GPT_4o_VERSION }}
+      AZURE_GPT_4o_KEY_BATCH: ${{ secrets.AZURE_GPT_4o_KEY_BATCH }}
+      AZURE_GPT_4o_URL_BATCH: ${{ secrets.AZURE_GPT_4o_URL_BATCH }}
+      AZURE_GPT_41_URL: ${{ secrets.AZURE_GPT_41_URL }}
+      AZURE_GPT_41_KEY: ${{ secrets.AZURE_GPT_41_KEY }}
+      AZURE_GPT_4o_VERSION_BATCH: ${{ secrets.AZURE_GPT_4o_VERSION_BATCH }}
+      ONGC_PG_SERVER: ${{ secrets.ONGC_PG_SERVER }}
+      ONGC_PG_DRIVER: ${{ secrets.ONGC_PG_DRIVER }}
+      ONGC_PG_PORT: ${{ secrets.ONGC_PG_PORT }}
+      ONGC_PG_DATABASE: ${{ secrets.ONGC_PG_DATABASE }}
+      ONGC_PG_USERNAME: ${{ secrets.ONGC_PG_USERNAME }}
+      ONGC_PG_PASSWORD: ${{ secrets.ONGC_PG_PASSWORD }}
+
+      ONGC_VECTOR_SERVER: ${{ secrets.ONGC_VECTOR_SERVER }}
+      ONGC_VECTOR_DRIVER: ${{ secrets.ONGC_VECTOR_DRIVER }}
+      ONGC_VECTOR_PORT: ${{ secrets.ONGC_VECTOR_PORT }}
+      ONGC_VECTOR_DATABASE: ${{ secrets.ONGC_VECTOR_DATABASE }}
+      ONGC_VECTOR_USERNAME: ${{ secrets.ONGC_VECTOR_USERNAME }}
+      ONGC_VECTOR_PASSWORD: ${{ secrets.ONGC_VECTOR_PASSWORD }}
+
+      LOGINRADIUS_SITEURL: ${{ secrets.LOGINRADIUS_SITEURL }}
+      LOGINRADIUS_JWTAPPNAME: ${{ secrets.LOGINRADIUS_JWTAPPNAME }}
+      LOGFIRE_API_KEY: ${{ secrets.LOGFIRE_API_KEY }}
+          
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+        
+      - name: Get Changed Files
+        id: changed-files
+        run: |
+          CHANGED_FILES=$(git diff --name-only HEAD^1 HEAD | tr '\n' ' ')
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
+
+      - name: Setup Python # Set Python version
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Create .env file
+        run: |
+          echo "PROJECT_NAME=${{ secrets.PROJECT_NAME }}" >> .env
+          echo "FIRST_SUPERUSER_PASSWORD=${{ secrets.FIRST_SUPERUSER_PASSWORD }}" >> .env
+          echo "FIRST_SUPERUSER_EMAIL=${{ secrets.FIRST_SUPERUSER_EMAIL }}" >> .env
+          echo "ENCRYPT_KEY=${{ secrets.ENCRYPT_KEY }}" >> .env
+          echo "BACKEND_CORS_ORIGINS=[\"*\"]" >> .env
+          echo "DATABASE_HOST=${{ secrets.DATABASE_HOST }}" >> .env
+          echo "DATABASE_USER=${{ secrets.DATABASE_USER }}" >> .env
+          echo "DATABASE_PASSWORD=${{ secrets.DATABASE_PASSWORD }}" >> .env
+          echo "DATABASE_NAME=${{ secrets.DATABASE_NAME }}" >> .env
+          echo "DATABASE_CELERY_NAME=${{ secrets.DATABASE_CELERY_NAME }}" >> .env
+          echo "DATABASE_PORT=${{ secrets.DATABASE_PORT }}" >> .env
+          echo "EXT_ENDPOINT1=${{ secrets.EXT_ENDPOINT1 }}" >> .env
+          echo "LOCAL_1=${{ secrets.LOCAL_1 }}" >> .env
+          echo "LOCAL_2=${{ secrets.LOCAL_2 }}" >> .env
+          echo "REDIS_HOST=${{ secrets.REDIS_HOST }}" >> .env
+          echo "REDIS_PORT=${{ secrets.REDIS_PORT }}" >> .env
+          echo "RABBITMQ_HOST=${{ secrets.RABBITMQ_HOST }}" >> .env
+          echo "RABBITMQ_PORT=${{ secrets.RABBITMQ_PORT }}" >> .env
+          echo "RABBITMQ_USER=${{ secrets.RABBITMQ_USER }}" >> .env
+          echo "RABBITMQ_PASSWORD=${{ secrets.RABBITMQ_PASSWORD }}" >> .env
+          echo "R2R_URL=${{ secrets.R2R_URL }}" >> .env
+          echo "R2R_USER=${{ secrets.R2R_USER }}" >> .env
+          echo "R2R_PASS=${{ secrets.R2R_PASS }}" >> .env
+          echo "AZURE_OPENAI_API_KEY=${{ secrets.AZURE_OPENAI_API_KEY }}" >> .env
+          echo "AZURE_BASE_URL=${{ secrets.AZURE_BASE_URL }}" >> .env
+          echo "AZURE_API_VERSION=${{ secrets.AZURE_API_VERSION }}" >> .env
+          echo "VAULT_ADDR=${{ secrets.VAULT_ADDR }}" >> .env
+          echo "VAULT_TOKEN=${{ secrets.VAULT_TOKEN }}" >> .env
+          echo "VAULT_SECRET_PATH=${{ secrets.VAULT_SECRET_PATH }}" >> .env
+          echo "UPLOAD_FOLDER=${{ secrets.UPLOAD_FOLDER }}" >> .env
+          echo "TABLE_EXTRACTION_DATA_PATH=${{ secrets.TABLE_EXTRACTION_DATA_PATH }}" >> .env
+          echo "LOGINRADIUS_API_KEY=${{ secrets.LOGINRADIUS_API_KEY }}" >> .env
+          echo "LOGINRADIUS_API_SECRET=${{ secrets.LOGINRADIUS_API_SECRET }}" >> .env
+          echo "AZURE_GPT_4o_KEY=${{ secrets.AZURE_GPT_4o_KEY }}" >> .env
+          echo "AZURE_GPT_4o_URL=${{ secrets.AZURE_GPT_4o_URL }}" >> .env
+          echo "AZURE_GPT_4o_VERSION=${{ secrets.AZURE_GPT_4o_VERSION }}" >> .env
+          echo "AZURE_GPT_4o_KEY_BATCH=${{ secrets.AZURE_GPT_4o_KEY_BATCH }}" >> .env
+          echo "AZURE_GPT_4o_URL_BATCH=${{ secrets.AZURE_GPT_4o_URL_BATCH }}" >> .env
+          echo "AZURE_GPT_4o_VERSION_BATCH=${{ secrets.AZURE_GPT_4o_VERSION_BATCH }}" >> .env
+          echo "ONGC_PG_SERVER=${{ secrets.ONGC_PG_SERVER }}" >> .env
+          echo "ONGC_PG_DRIVER=${{ secrets.ONGC_PG_DRIVER }}" >> .env
+          echo "ONGC_PG_PORT=${{ secrets.ONGC_PG_PORT }}" >> .env
+          echo "ONGC_PG_DATABASE=${{ secrets.ONGC_PG_DATABASE }}" >> .env
+          echo "ONGC_PG_USERNAME=${{ secrets.ONGC_PG_USERNAME }}" >> .env
+          echo "ONGC_PG_PASSWORD=${{ secrets.ONGC_PG_PASSWORD }}" >> .env
+          echo "ONGC_VECTOR_SERVER=${{ secrets.ONGC_VECTOR_SERVER }}" >> .env
+          echo "ONGC_VECTOR_DRIVER=${{ secrets.ONGC_VECTOR_DRIVER }}" >> .env
+          echo "ONGC_VECTOR_PORT=${{ secrets.ONGC_VECTOR_PORT }}" >> .env
+          echo "ONGC_VECTOR_DATABASE=${{ secrets.ONGC_VECTOR_DATABASE }}" >> .env
+          echo "ONGC_VECTOR_USERNAME=${{ secrets.ONGC_VECTOR_USERNAME }}" >> .env
+          echo "ONGC_VECTOR_PASSWORD=${{ secrets.ONGC_VECTOR_PASSWORD }}" >> .env
+          echo "AZURE_GPT_41_KEY=${{ secrets.AZURE_GPT_41_KEY }}" >> .env
+          echo "AZURE_GPT_41_URL=${{ secrets.AZURE_GPT_41_URL }}" >> .env
+          echo "LOGINRADIUS_SITEURL=${{ secrets.LOGINRADIUS_SITEURL }}" >> .env
+          echo "LOGINRADIUS_JWTAPPNAME=${{ secrets.LOGINRADIUS_JWTAPPNAME }}" >> .env
+          echo "LOGFIRE_API_KEY=${{ secrets.LOGFIRE_API_KEY }}" >> .env
+
+      - name: Build and Start Docker Compose Services
+        run: |
+          docker compose -f docker-compose-test.yml up --build -d
+
+      - name: Setup DB with initial User
+        run: |
+          docker compose -f docker-compose-dev.yml exec fastapi-server python app/initial_data.py
+
+      - name: Create Tests Report Directory 
+        run: mkdir -p ./tests
+
+      - name: Run Tests
+        id: run-tests
+        timeout-minutes: 10
+        run: |
+          if echo "$CHANGED_FILES" | grep -qF "search"; then
+            echo "Changes in search functionality detected. Running all tests."
+            docker compose -f docker-compose-test.yml exec fastapi-server pytest test/api/ test/unit_test/ --disable-warnings --junitxml=./tests/test-results.xml
+          else
+            echo "No changes in search functionality detected. skipping search tests."
+            docker compose -f docker-compose-test.yml exec fastapi-server pytest test/api/ test/api/v2/ test/unit_test/ test/integration_tests test/utils --ignore=test/api/test_search.py --disable-warnings --junitxml=./tests/test-results.xml
+          fi
+      - name: Display FastAPI container logs run fails
+        if: failure()
+        run: docker compose -f docker-compose-test.yml logs fastapi-server
+
+      - name: Copy Test Results out of docker
+        if: always()
+        run: |
+          docker cp fastapi-server:/code/tests/test-results.xml ./tests/test-results.xml
+      
+      - name: Publish Test Results
+        uses: EnricoMi/publish-unit-test-result-action/linux@v2
+        if: always()
+        with:
+          files: |
+            ./tests/test-results.xml
+      
+      - name: Retrieve Alembic History  
+        id: retrieve_history  
+        run: |  
+          docker compose -f docker-compose-test.yml exec fastapi-server alembic history | awk 'NR==5 {print $1}' | sed 's/,//' > revision.txt  
+  
+      - name: Downgrade to 5th Most Recent Alembic Version  
+        run: |  
+          revision=$(cat revision.txt)  
+          if [ -z "$revision" ]; then  
+            echo "Failed to retrieve the revision to downgrade to."  
+            exit 1  
+          fi  
+          docker compose -f docker-compose-test.yml exec fastapi-server alembic downgrade $revision
+          echo "Downgraded to $revision"
+  
+      - name: Upgrade to Head  
+        run: docker compose -f docker-compose-test.yml exec fastapi-server alembic upgrade head  
+            
+      - name: Stop Docker Compose Services
+        if: always()
+        run: |
+          docker compose -f docker-compose-test.yml down

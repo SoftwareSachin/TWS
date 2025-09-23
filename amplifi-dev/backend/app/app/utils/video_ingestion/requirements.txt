@@ -1,0 +1,39 @@
+ #VideoRAG Requirements  
+# Compatible with CUDA 12.6 - Robust configuration for faster-whisper + PyTorch
+# Based on official compatibility matrix: https://github.com/SYSTRAN/faster-whisper
+#Python 3.12
+
+# Core ML frameworks - Use exact versions that work together
+torch==2.8.0+cu126
+torchvision==0.23.0+cu126
+torchaudio==2.8.0+cu126
+--extra-index-url https://download.pytorch.org/whl/cu126
+
+# CTranslate2 - Use version 4.5.0+ which officially supports cuDNN 9
+# CTranslate2 4.5.0+ natively supports CUDA 12 + cuDNN 9 (no symlinks needed)
+ctranslate2>=4.6.0
+
+# Transformers and acceleration
+transformers==4.53.0
+accelerate==1.6.0
+# Use GPU-enabled bitsandbytes for quantized models
+bitsandbytes==0.44.1
+huggingface_hub>=0.20.0
+# Triton for GPU operations (required for quantized models)
+triton>=2.1.0
+
+# Video processing
+moviepy==1.0.3
+git+https://github.com/facebookresearch/pytorchvideo.git@28fe037d212663c6a24f373b94cc5d478c8c1a1d
+numpy==1.26.4
+Pillow==11.1.0
+tqdm==4.67.1
+
+# Audio transcription - Use latest version compatible with ctranslate2 >= 4.6.0
+# faster-whisper 1.2.0 works with ctranslate2 4.6.0 and cuDNN 9
+faster-whisper>=1.2.0
+
+# OpenAI and utilities - Use compatible version with pydantic-ai
+openai>=1.99.8
+tenacity==9.1.2
+tiktoken==0.9.0

@@ -1,0 +1,21 @@
+name: PROD Release Publish Notification
+
+on:
+  release:
+    types: [published] # Trigger on new release publication
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Send notification to Microsoft Teams
+        uses: jdcargile/ms-teams-notification@v1.4
+        with:
+          github-token: ${{ github.token }}
+          ms-teams-webhook-uri: ${{ secrets.MICROSOFT_TEAMS_RELEASE_WEBHOOK_URI }}
+          notification-summary: "New release published &#x1F6A2 &#x2705; @General ${{ github.event.release.tag_name }}"
+          notification-color: "17a2b8"
+          verbose-logging: true

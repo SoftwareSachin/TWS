@@ -1,0 +1,34 @@
+name: Build Postgres database image
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Define env name'
+        options:
+          - dev
+          - prod
+        type: choice
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 'Docker Login'
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.REGISTRY_LOGIN_SERVER }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      - name: Build fastapi-server image and push it to ACR
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          file: k8s.Dockerfile
+          push: true
+          tags: ${{ secrets.REGISTRY_LOGIN_SERVER }}/amplifi-database:${{ github.ref_name }}

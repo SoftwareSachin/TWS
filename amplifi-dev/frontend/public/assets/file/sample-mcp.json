@@ -1,0 +1,7 @@
+{
+  "example_mcp": {
+    "command": "npx",
+    "args": ["-y", "@modelcontextprotocol/example-mcp", "run-task"],
+    "env": {}
+  }
+}

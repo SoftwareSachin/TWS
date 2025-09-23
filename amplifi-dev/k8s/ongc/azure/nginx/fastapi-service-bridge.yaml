@@ -1,0 +1,8 @@
+#apiVersion: v1
+#kind: Service
+#metadata:
+#  name: fastapi-service-bridge
+#  namespace: ingress
+#spec:
+#  type: ExternalName
+#  externalName: fastapi-service.amplifi-dev

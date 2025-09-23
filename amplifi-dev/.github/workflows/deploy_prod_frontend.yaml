@@ -1,0 +1,118 @@
+name: PROD[:] Deploy Amplifi-UI
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version name (e.g., v1.0.0)'
+        required: true
+        default: 'v1.0.0'
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        type: choice
+        options:
+          - prod
+          - cch-prod
+  push:
+    tags: [ 'v[0-9]+.[0-9]+.[0-9]+*' ]
+    paths:
+      - frontend/**
+
+jobs:
+  deploy-frontend:
+    runs-on: ubuntu-latest
+    name: Build and Deploy to Azure App Service Web App
+    environment: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.environment || (contains(github.ref_name, 'cch-prod') && 'cch-prod' || 'prod') }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Determine environment and directory
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "ENV_DIR=${{ github.event.inputs.environment }}" >> $GITHUB_ENV
+            if [ "${{ github.event.inputs.environment }}" = "prod" ]; then
+              echo "GH_ENV=prod" >> $GITHUB_ENV
+              echo "APP_NAME=app-amplifi-ui-prod-001" >> $GITHUB_ENV
+            else
+              echo "GH_ENV=cch-prod" >> $GITHUB_ENV
+              echo "APP_NAME=app-amplifi-ui-prod-100" >> $GITHUB_ENV
+            fi
+            echo "TAG=${{ github.event.inputs.version }}" >> $GITHUB_ENV
+          else
+            TAG_SUFFIX=$(echo "${{ github.ref_name }}" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+(-.*)?$' | cut -d'-' -f2 || echo "")
+            case "$TAG_SUFFIX" in
+              "")
+                echo "ENV_DIR=prod" >> $GITHUB_ENV
+                echo "GH_ENV=prod" >> $GITHUB_ENV
+                echo "APP_NAME=app-amplifi-ui-prod-001" >> $GITHUB_ENV
+                ;;
+              prod)
+                echo "ENV_DIR=prod" >> $GITHUB_ENV
+                echo "GH_ENV=prod" >> $GITHUB_ENV
+                echo "APP_NAME=app-amplifi-ui-prod-001" >> $GITHUB_ENV
+                ;;
+              cch-prod)
+                echo "ENV_DIR=cch-prod" >> $GITHUB_ENV
+                echo "GH_ENV=cch-prod" >> $GITHUB_ENV
+                echo "APP_NAME=app-amplifi-ui-prod-100" >> $GITHUB_ENV
+                ;;
+              *)
+                echo "Invalid tag suffix: $TAG_SUFFIX"
+                exit 1
+                ;;
+            esac
+            echo "TAG=${{ github.ref_name }}" >> $GITHUB_ENV
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.18.0
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build the app
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_BASE_URL: ${{ vars.NEXT_PUBLIC_BASE_URL }}
+          SPEECH_KEY: ${{ secrets.NEXT_PUBLIC_SPEECH_KEY }}
+          NEXT_PUBLIC_COOKIE_DOMAIN: ${{ vars.NEXT_PUBLIC_COOKIE_DOMAIN }}
+          NEXT_PUBLIC_CHAT_HOST_NAME: ${{ vars.NEXT_PUBLIC_CHAT_HOST_NAME }}
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+          NEXT_PUBLIC_POSTHOG_HOST: "https://us.i.posthog.com"
+#          NEXT_PUBLIC_FLAGSMITH_ENV_KEY: ${{ vars.NEXT_PUBLIC_FLAGSMITH_ENV_KEY }}
+        run: npm run build
+
+      - name: Package Build Artifacts
+        working-directory: frontend
+        run: |
+          mkdir deployment
+          cp -R .next deployment/.next
+          cp -R public deployment/public
+          cp package.json deployment/package.json
+          cp package-lock.json deployment/package-lock.json
+
+      - name: Verify Deployment Package
+        working-directory: frontend/deployment
+        run: ls -la
+
+      - uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+        env:
+          environment: ${{ env.GH_ENV }}
+
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.APP_NAME }}
+          package: frontend/deployment
+
+      - name: Logout
+        run: |
+          az logout

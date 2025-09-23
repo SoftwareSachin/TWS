@@ -1,0 +1,27 @@
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pvc-blob
+  namespace: amplifi-dev
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 512Gi
+  volumeName: pv-blob
+  storageClassName: azureblob-nfs-premium
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: pvc-blob-table-extraction
+  namespace: amplifi-dev
+spec:
+  accessModes:
+    - ReadWriteMany
+  resources:
+    requests:
+      storage: 512Gi
+  volumeName: pv-blob-table-extraction
+  storageClassName: azureblob-nfs-premium

@@ -1,0 +1,240 @@
+services:
+  database:
+    restart: always
+    container_name: database
+    build:
+      dockerfile: database.Dockerfile
+    env_file: .env
+    volumes:
+      - db_docker:/data
+    ports:
+      - 5454:5432 # Remove this on production
+    # platform: linux/arm64
+    expose:
+      - 5432
+    environment:
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+
+  fastapi-server:
+    container_name: fastapi-server
+    build: 
+      context: ./backend
+    restart: always
+    #    command: "sh -c 'alembic upgrade head && fastapi run /code/app/main.py --port 8000'"
+    command: "sh -c 'alembic upgrade head && uvicorn app.main:app --reload --loop asyncio --workers 3 --host 0.0.0.0 --port 8000'"
+    volumes:
+      # - /c/Users/tws_l/OneDrive/Desktop/uploads:/app/uploads
+      - ./backend/app:/code
+      - upload-volume:/app/uploads
+      - eval-question-answer-volume:/app/eval-question-answer-files
+      - groove-volume:/app/groove-files
+      - kuzu-dbs-volume:/app/kuzu_dbs
+      - generated-files-volume:/app/generated-files
+      - /var/run/docker.sock:/var/run/docker.sock
+      # - ${UPLOAD_FOLDER}:/app/uploads
+      #      - ./sample_files:/mnt/sample_files
+    expose:
+      - 8000
+    env_file: .env
+    depends_on:
+      - database
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: always
+    ports:
+      - '6379:6379'
+
+  vault:
+    image: hashicorp/vault:1.17
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_ADDR: "http://127.0.0.1:8200"
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault-volume:/vault/file:rw
+      - ./vault:/vault/config:rw
+    entrypoint: vault server -config=/vault/config/vault.json
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_dev
+    env_file: .env
+    ports:
+      - "5672:5672" # RabbitMQ main port
+      - "15672:15672" # RabbitMQ management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  celery_video_ingestion_worker:
+    container_name: celery_video_ingestion_worker
+    env_file: .env
+    restart: always
+    profiles:
+      - video-ingestion  # Only start when video-ingestion profile is active
+    build: 
+      context: ./backend
+      dockerfile: video_ingestion.Dockerfile
+      args:
+        ENABLE_GPU: ${ENABLE_GPU:-true}
+        CUDA_VERSION: ${CUDA_VERSION:-12.6}
+        ENABLE_VIDEO_INGESTION: ${ENABLE_VIDEO_INGESTION:-true}
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      # Use standard Hugging Face cache locations (aligned with docling)
+      - HF_HUB_DISABLE_PROGRESS_BARS=1
+      - HF_HUB_DISABLE_TELEMETRY=1
+    command: "watchfiles 'python run_celery_video.py'"
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    volumes:
+      - ./backend/app:/code
+      - upload-volume:/app/uploads
+      - groove-volume:/app/groove-files
+      - table-extraction-data-volume:/app/table-extraction-data
+      - kuzu-dbs-volume:/app/kuzu_dbs
+    #      - ./sample_files:/mnt/sample_files
+    # - "${EB_LOG_BASE_DIR}/php-app:/var/log/celery"
+    depends_on:
+      - database
+      - rabbitmq
+  #      - redis
+  celery_ingestion_worker_1:
+    container_name: celery_ingestion_worker_1
+    env_file: .env
+    restart: always
+    build: ./backend
+    # command: "watchfiles 'celery -A app.be_core.celery worker --pool=threads --concurrency=1 --queues=ingestion_queue,search_eval_queue,workflow_queue,fetch_vector_queue,store_vector_queue,file_pull_queue,pgvector_queue,mysql_queue -l info'" #
+    command: "watchfiles 'celery -A app.be_core.celery worker --pool=threads --concurrency=1 --queues=ingestion_queue -l info'" #
+    volumes:
+      - ./backend/app:/code
+      - upload-volume:/app/uploads
+      - groove-volume:/app/groove-files
+      - table-extraction-data-volume:/app/table-extraction-data
+      - kuzu-dbs-volume:/app/kuzu_dbs
+    #      - ./sample_files:/mnt/sample_files
+    # - "${EB_LOG_BASE_DIR}/php-app:/var/log/celery"
+    depends_on:
+      - database
+      - rabbitmq
+  #      - redis
+  celery_ingestion_worker_3:
+    container_name: celery_ingestion_worker_3
+    env_file: .env
+    restart: always
+    build: ./backend
+    # command: "watchfiles 'celery -A app.be_core.celery worker --pool=threads --concurrency=1 --queues=ingestion_queue,search_eval_queue,workflow_queue,fetch_vector_queue,store_vector_queue,file_pull_queue,pgvector_queue,mysql_queue -l info'" #
+    command: "watchfiles 'celery -A app.be_core.celery worker --pool=threads --concurrency=1 --queues=ingestion_queue -l info'" #
+    volumes:
+      - ./backend/app:/code
+      - upload-volume:/app/uploads
+      - groove-volume:/app/groove-files
+      - table-extraction-data-volume:/app/table-extraction-data
+      - kuzu-dbs-volume:/app/kuzu_dbs
+    # - ./sample_files:/mnt/sample_files
+    # - "${EB_LOG_BASE_DIR}/php-app:/var/log/celery"
+    depends_on:
+      - database
+      - rabbitmq
+  #      - redis
+
+  celery_default_worker:
+    container_name: celery_default_worker
+    env_file: .env
+    restart: always
+    build: ./backend
+    command: "watchfiles 'celery -A app.be_core.celery worker --pool=threads --queues=search_eval_queue,workflow_queue,fetch_vector_queue,store_vector_queue,file_pull_queue,pgvector_queue,mysql_queue,check_pdf_queue,training_vanna_queue,file_cleanup_queue,groove_fetch_queue -l info'" #
+    volumes:
+      - ./backend/app:/code
+      - upload-volume:/app/uploads
+      - groove-volume:/app/groove-files
+      # - table-extraction-data-volume:/app/table-extraction-data
+      #      - ./sample_files:/mnt/sample_files
+      # - "${EB_LOG_BASE_DIR}/php-app:/var/log/celery"
+      - kuzu-dbs-volume:/app/kuzu_dbs
+    depends_on:
+      - database
+      - rabbitmq
+  #      - redis
+  celery_file_compression_worker_1:
+    container_name: celery_file_compression_worker_1
+    env_file: .env
+    restart: always
+    build: ./backend
+    command: "watchfiles 'celery -A app.be_core.celery worker --pool=prefork --concurrency=1 --queues=file_compression_queue -l info'"
+    volumes:
+      - ./backend/app:/code
+      - upload-volume:/app/uploads
+      - table-extraction-data-volume:/app/table-extraction-data
+      - kuzu-dbs-volume:/app/kuzu_dbs
+    depends_on:
+      - database
+      - rabbitmq
+
+
+  celery-beat:
+    #Good for crontab and schedule tasks
+    container_name: celery-beat
+    restart: always
+    env_file: .env
+    build:
+      context: ./backend
+      args:
+        INSTALL_DEV: ${INSTALL_DEV-false}
+    command: celery -A app.be_core.celery beat -l info -S sqlalchemy_celery_beat.schedulers:DatabaseScheduler -l info
+    volumes:
+      - ./backend/app:/code
+      - kuzu-dbs-volume:/app/kuzu_dbs
+    depends_on:
+      - database
+      - rabbitmq
+  #      - redis
+
+  #  caddy-reverse-proxy:
+  #    container_name: caddy-reverse-proxy
+  #    image: caddy:alpine
+  #    restart: always
+  #    env_file: dev.caddy.env
+  #    ports:
+  #      - "80:80"
+  #      - "443:443"
+  #    volumes:
+  #      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+  #      - caddy_data:/data
+  #      - caddy_config:/config
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8085:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - fastapi-server
+
+volumes:
+  db_docker: #  caddy_data:
+
+  #  caddy_config:
+  rabbitmq_data:
+  vault-volume:
+  upload-volume:
+  table-extraction-data-volume:
+  eval-question-answer-volume:
+  groove-volume:
+  kuzu-dbs-volume:
+  generated-files-volume:

@@ -1,0 +1,169 @@
+services:
+  database:
+    restart: always
+    container_name: database
+    build:
+      dockerfile: database.Dockerfile
+    env_file: .env
+    volumes:
+      - db_docker:/data
+    ports:
+      - 5454:5432 # Remove this on production
+    expose:
+      - 5432
+    environment:
+      - POSTGRES_USER=${DATABASE_USER}
+      - POSTGRES_PASSWORD=${DATABASE_PASSWORD}
+
+  fastapi-server:
+    container_name: fastapi-server
+    build: 
+      context: 
+        ./backend
+      args:
+        INSTALL_DEV: "true"
+    restart: always
+    command: "sh -c 'alembic upgrade head && uvicorn app.main:app --reload --loop asyncio --workers 3 --host 0.0.0.0 --port 8000'"
+    #command: "sh -c 'alembic upgrade head && gunicorn -w 3 -k uvicorn.workers.UvicornWorker app.main:app  --bind 0.0.0.0:8000 --preload --log-level=debug --timeout 120'"
+    volumes:
+      # - C:\Users\tws_l\OneDrive\Desktop\uploads:/app/uploads
+      - ./backend/app:/code
+      - upload-volume:/app/uploads
+      - table-extraction-data-volume:/app/table-extraction-data
+      - kuzu-dbs-volume:/app/kuzu_dbs
+      - generated-files-volume:/app/generated-files
+#      - ./sample_files:/mnt/sample_files
+    expose:
+      - 8000
+    env_file: .env
+    depends_on:
+      - database
+
+  redis:
+    image: redis:alpine
+    container_name: redis
+    restart: always
+    ports:
+      - '6379:6379'
+
+  vault:
+    image: hashicorp/vault:1.17
+    cap_add:
+      - IPC_LOCK
+    environment:
+      VAULT_DEV_ROOT_TOKEN_ID: root_token
+      # VAULT_ADDR: http://0.0.0.0:8200
+      VAULT_API_ADDR: http://0.0.0.0:8200
+      VAULT_DEV_LISTEN_ADDRESS: 0.0.0.0:8200
+    ports:
+      - "8200:8200"
+    volumes:
+      - vault-volume:/vault/file
+      - ./vault:/vault/config
+    command: vault server -dev -dev-root-token-id=root_token
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8200/v1/sys/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq_dev
+    env_file: .env
+    ports:
+      - "5672:5672"  # RabbitMQ main port
+      - "15672:15672"  # RabbitMQ management UI port
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD}
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+
+  celery_ingestion_worker:
+    container_name: celery_ingestion_worker
+    env_file: .env
+    restart: always
+    build: ./backend
+    # command: "watchfiles 'celery -A app.be_core.celery worker --pool=threads --concurrency=1 --queues=ingestion_queue,search_eval_queue,workflow_queue,fetch_vector_queue,store_vector_queue,file_pull_queue,pgvector_queue,mysql_queue -l info'" #
+    command: "watchfiles 'celery -A app.be_core.celery worker --pool=solo --queues=ingestion_queue -l info'" #
+    volumes:
+      - ./backend/app:/code
+      - ./sample_files:/mnt/sample_files
+      - upload-volume:/app/uploads
+      - table-extraction-data-volume:/app/table-extraction-data
+      - kuzu-dbs-volume:/app/kuzu_dbs
+    # - "${EB_LOG_BASE_DIR}/php-app:/var/log/celery"
+    depends_on:
+      - database
+      - rabbitmq
+#      - redis
+
+  celery_default_worker:
+    container_name: celery_default_worker
+    env_file: .env
+    restart: always
+    build: ./backend
+    command: "watchfiles 'celery -A app.be_core.celery worker --pool=threads --queues=search_eval_queue,workflow_queue,fetch_vector_queue,store_vector_queue,file_pull_queue,pgvector_queue,mysql_queue -l info'" #
+    volumes:
+      - ./backend/app:/code
+      - ./sample_files:/mnt/sample_files
+      - upload-volume:/app/uploads
+      # - table-extraction-data-volume:/app/table-extraction-data
+      - kuzu-dbs-volume:/app/kuzu_dbs
+    # - "${EB_LOG_BASE_DIR}/php-app:/var/log/celery"
+    depends_on:
+      - database
+      - rabbitmq
+#      - redis
+
+  celery-beat:   #Good for crontab and schedule tasks
+    container_name: celery-beat
+    restart: always
+    env_file: .env
+    build:
+      context: ./backend
+      args:
+        INSTALL_DEV: ${INSTALL_DEV-false}
+    command: celery -A app.be_core.celery beat -l info -S sqlalchemy_celery_beat.schedulers:DatabaseScheduler -l info
+    volumes:
+      - ./backend/app:/code
+      - kuzu-dbs-volume:/app/kuzu_dbs
+    depends_on:
+      - database
+      - rabbitmq
+#      - redis
+
+#  caddy-reverse-proxy:
+#    container_name: caddy-reverse-proxy
+#    image: caddy:alpine
+#    restart: always
+#    env_file: dev.caddy.env
+#    ports:
+#      - "80:80"
+#      - "443:443"
+#    volumes:
+#      - ./caddy/Caddyfile:/etc/caddy/Caddyfile
+#      - caddy_data:/data
+#      - caddy_config:/config
+
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8085:8080"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - fastapi-server
+
+
+volumes:
+  db_docker:
+  caddy_data:
+  caddy_config:
+  rabbitmq_data:
+  vault-volume:
+  kuzu-dbs-volume:
+  generated-files-volume:
+  upload-volume:
+  table-extraction-data-volume:

@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: amplifi
+  name: celery-beat
+  namespace: amplifi-dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: celery-beat
+  template:
+    metadata:
+      labels:
+        app: celery-beat
+    spec:
+      containers:
+        - args:
+            - celery
+            - -A
+            - app.be_core.celery
+            - beat
+            - -l
+            - info
+            - -S
+            - sqlalchemy_celery_beat.schedulers:DatabaseScheduler
+            - -l
+            - info
+          envFrom:
+            - configMapRef:
+                name: celery-config
+            - secretRef:
+                name: celery-secret
+          image: crAmplifiProd.azurecr.io/amplifi-celery-beat:dev-f21ee1dd5bab8ca08c8062e09e870f19d8e1d645
+          imagePullPolicy: Always
+          name: celery-beat
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "0.5"
+            limits:
+              memory: "1Gi"
+              cpu: "1"
+          volumeMounts:
+            - mountPath: /app/uploads
+              name: celery-volume-mount
+      restartPolicy: Always
+      volumes:
+        - name: celery-volume-mount
+          persistentVolumeClaim:
+            claimName: pvc-blob

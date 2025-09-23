@@ -1,0 +1,41 @@
+apiVersion: v1
+data:
+  DEPLOYED_ENV: azure_dev
+  BACKEND_CORS_ORIGINS: '["*"]'
+  DATABASE_CELERY_NAME: celery_schedule_jobs
+  DATABASE_HOST: postgres-service
+  DATABASE_NAME: amplifi_db-ongc-prod
+  DATABASE_PORT: "5432"
+  PROJECT_NAME: amplifi-platform
+#  R2R_URL: http://4.227.177.73:7272
+  R2R_URL: http://r2r.r2r-dev:7272
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_PORT: "5672"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  AZURE_BASE_URL: https://oai-amplifi-ongc.openai.azure.com
+  AZURE_API_VERSION: 2024-08-01-preview
+  VAULT_SECRET_PATH: /v2/secret/data/
+  VAULT_ADDR: http://vault.amplifi-vault:8200
+  AZURE_TENANT_ID: 26b0c217-c2ce-4952-ae06-b5c36c07c2ce
+  AZURE_KEY_VAULT_NAME: kv-amplifi-prod-001
+  AZURE_GPT_4o_KEY: 3972eb4e50404396b23da7c6596ad1de # Need to remove this from here and add it to the secret
+  AZURE_GPT_4o_URL: https://oai-amplifi-ongc.openai.azure.com
+  AZURE_GPT_4o_VERSION: 2024-08-01-preview
+  LOGIN_APP: "ONGC"
+  MSAL_AZURE_CLIENT_ID: 4667e400-2b81-435d-ac19-e0c4017e97c6
+  ONGC_PG_SERVER: pg-sqlsource-ongcdata-server-prod.postgres.database.azure.com
+  ONGC_PG_DRIVER: psycopg
+  ONGC_PG_PORT: "5432"
+  ONGC_PG_DATABASE: ongc_source_db
+
+  ONGC_VECTOR_SERVER: postgres-service
+  ONGC_VECTOR_DRIVER: psycopg
+  ONGC_VECTOR_PORT: "5432"
+  ONGC_VECTOR_DATABASE: vanna_db
+kind: ConfigMap
+metadata:
+  labels:
+    app: amplifi
+  name: celery-config
+  namespace: amplifi-dev

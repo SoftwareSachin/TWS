@@ -1,0 +1,8 @@
+{
+  "label": "How-To Guides",
+  "position": 4,
+  "link": {
+    "type": "generated-index",
+    "description": "Practical, step-by-step instructions for common Amplifi tasks."
+  }
+}

@@ -1,0 +1,65 @@
+name: Deploy amplifi-devUI to Azure App Service Web App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ["dev"]
+    paths: ["frontend/**", ".github/workflows/deploy_dev_frontend.yml"]
+
+jobs:
+  build_and_deploy_job:
+    if: github.event_name == 'push' || github.event.pull_request.merged == true || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment: dev
+    name: Build and Deploy to Azure Static Web Apps
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.18.0
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm install
+
+      - name: Build the app
+        working-directory: frontend
+        env:
+          NEXT_PUBLIC_BASE_URL: "https://dev-api.dataamplifi.com/api"
+          NEXT_PUBLIC_CHAT_HOST_NAME: "https://dev-chat.dataamplifi.com"
+          NEXT_PUBLIC_POSTHOG_KEY: ${{ secrets.NEXT_PUBLIC_POSTHOG_KEY }}
+          NEXT_PUBLIC_POSTHOG_HOST: "https://us.i.posthog.com"
+          NEXT_PUBLIC_COOKIE_DOMAIN: ".dataamplifi.com"
+          NEXT_PUBLIC_FLAGSMITH_ENVIRONMENT_KEY: ${{secrets.NEXT_PUBLIC_FLAGSMITH_ENVIRONMENT_KEY}}
+          SPEECH_KEY: ${{secrets.NEXT_PUBLIC_SPEECH_KEY}}
+        run: npm run build
+
+      # Step 5: Prepare Deployment Package
+      - name: Package Build Artifacts
+        working-directory: frontend
+        run: |
+          mkdir deployment
+          cp -R .next deployment/.next
+          cp -R public deployment/public
+          cp package.json deployment/package.json
+          cp package-lock.json deployment/package-lock.json
+
+      # Step 6: Debug - Verify Deployment Package
+      - name: Verify Deployment Package
+        working-directory: frontend/deployment
+        run: ls -la
+
+      - name: Log in to Azure
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Step 6: Deploy to Azure Web App (using Azure Login)
+      - name: Deploy to Azure Web App
+        uses: azure/webapps-deploy@v2
+        with:
+          app-name: "app-amplifi-devui-001" # Replace with your Azure app name
+          package: frontend/deployment
