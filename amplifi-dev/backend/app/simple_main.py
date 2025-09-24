@@ -69,7 +69,7 @@ import tempfile
 import shutil
 
 # Simple in-memory data store for testing (in production, use real database)
-users_db: Dict[int, Dict] = {}
+simple_users_db: Dict[int, Dict] = {}  # Simple user store for basic CRUD
 next_user_id = 1
 
 # Mock data stores for organization-related endpoints
@@ -80,6 +80,15 @@ datasets_db: Dict[str, List[Dict]] = {}
 chat_apps_db: Dict[str, List[Dict]] = {}
 files_db: Dict[str, List[Dict]] = {}  # Store uploaded files by workspace_id
 sources_db: Dict[str, List[Dict]] = {}  # Store sources by workspace_id
+
+# Additional mock data stores for new endpoints
+workspace_datasets_db: Dict[str, List[Dict]] = {}  # Store datasets by workspace_id
+workspace_tools_db: Dict[str, List[Dict]] = {}  # Store tools by workspace_id
+workspace_agents_db: Dict[str, List[Dict]] = {}  # Store agents by workspace_id
+workspace_chat_apps_db: Dict[str, List[Dict]] = {}  # Store chat apps by workspace_id
+global_tools_db: List[Dict] = []  # Global tools and MCP tools
+users_db: List[Dict] = []  # Users database
+search_results_db: Dict[str, List[Dict]] = {}  # Search results by workspace_id
 
 class UserCreate(BaseModel):
     """User creation model"""
@@ -131,42 +140,42 @@ async def create_user(user: UserCreate):
         "is_active": user.is_active,
         "created_at": datetime.now(timezone.utc).isoformat()
     }
-    users_db[next_user_id] = user_data
+    simple_users_db[next_user_id] = user_data
     next_user_id += 1
     return UserResponse(**user_data)
 
 @app.get("/api/v1/users", response_model=List[UserResponse])
 async def get_users():
     """Get all users"""
-    return [UserResponse(**user) for user in users_db.values()]
+    return [UserResponse(**user) for user in simple_users_db.values()]
 
 @app.get("/api/v1/users/{user_id}", response_model=UserResponse)
 async def get_user(user_id: int):
     """Get a specific user"""
-    if user_id not in users_db:
+    if user_id not in simple_users_db:
         raise HTTPException(status_code=404, detail="User not found")
-    return UserResponse(**users_db[user_id])
+    return UserResponse(**simple_users_db[user_id])
 
 @app.put("/api/v1/users/{user_id}", response_model=UserResponse)
 async def update_user(user_id: int, user_update: UserCreate):
     """Update a user"""
-    if user_id not in users_db:
+    if user_id not in simple_users_db:
         raise HTTPException(status_code=404, detail="User not found")
     
-    users_db[user_id].update({
+    simple_users_db[user_id].update({
         "email": user_update.email,
         "name": user_update.name,
         "is_active": user_update.is_active
     })
-    return UserResponse(**users_db[user_id])
+    return UserResponse(**simple_users_db[user_id])
 
 @app.delete("/api/v1/users/{user_id}")
-async def delete_user(user_id: int):
+async def delete_simple_user(user_id: int):
     """Delete a user"""
-    if user_id not in users_db:
+    if user_id not in simple_users_db:
         raise HTTPException(status_code=404, detail="User not found")
     
-    del users_db[user_id]
+    del simple_users_db[user_id]
     return {"message": "User deleted successfully"}
 
 # ==================== API V1 ENDPOINTS ====================
@@ -596,6 +605,554 @@ async def get_specific_workspace(organization_id: str, workspace_id: str):
         "data": default_workspace,
         "message": "Workspace retrieved successfully"
     }
+
+# ==================== WORKSPACE DATASETS ENDPOINTS ====================
+
+@app.get("/api/v1/workspace/{workspace_id}/dataset")
+async def get_workspace_datasets(
+    workspace_id: str,
+    order: Optional[str] = "ascendent",
+    page: int = 1,
+    size: int = 50
+):
+    """Get datasets for a specific workspace"""
+    if workspace_id not in workspace_datasets_db:
+        workspace_datasets_db[workspace_id] = [
+            {
+                "id": "dataset-1",
+                "name": "Sample Dataset",
+                "description": "Sample data for testing workspace functionality",
+                "status": "ready",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "workspace_id": workspace_id,
+                "size": "2.4MB",
+                "records": 3500,
+                "type": "text"
+            }
+        ]
+    
+    workspace_datasets = workspace_datasets_db[workspace_id]
+    
+    # Simple pagination
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_datasets = workspace_datasets[start_idx:end_idx]
+    
+    return {
+        "data": {
+            "items": paginated_datasets,
+            "total": len(workspace_datasets),
+            "page": page,
+            "size": size,
+            "pages": (len(workspace_datasets) + size - 1) // size if size > 0 else 1
+        },
+        "message": "Datasets retrieved successfully"
+    }
+
+@app.post("/api/v1/workspace/{workspace_id}/dataset")
+async def create_workspace_dataset(workspace_id: str, dataset_data: dict):
+    """Create a new dataset for a workspace"""
+    if workspace_id not in workspace_datasets_db:
+        workspace_datasets_db[workspace_id] = []
+    
+    new_dataset = {
+        "id": f"dataset-{len(workspace_datasets_db[workspace_id]) + 1}",
+        "name": dataset_data.get("name", "New Dataset"),
+        "description": dataset_data.get("description", ""),
+        "status": "processing",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "workspace_id": workspace_id,
+        "size": "0MB",
+        "records": 0,
+        "type": dataset_data.get("type", "text")
+    }
+    workspace_datasets_db[workspace_id].append(new_dataset)
+    return {"data": new_dataset, "message": "Dataset created successfully"}
+
+@app.get("/api/v1/workspace/{workspace_id}/dataset/{dataset_id}")
+async def get_workspace_dataset_by_id(workspace_id: str, dataset_id: str):
+    """Get a specific dataset by ID"""
+    if workspace_id in workspace_datasets_db:
+        for dataset in workspace_datasets_db[workspace_id]:
+            if dataset["id"] == dataset_id:
+                return {"data": dataset, "message": "Dataset retrieved successfully"}
+    raise HTTPException(status_code=404, detail="Dataset not found")
+
+@app.put("/api/v1/workspace/{workspace_id}/dataset/{dataset_id}")
+async def update_workspace_dataset(workspace_id: str, dataset_id: str, dataset_data: dict):
+    """Update a specific dataset"""
+    if workspace_id in workspace_datasets_db:
+        for dataset in workspace_datasets_db[workspace_id]:
+            if dataset["id"] == dataset_id:
+                dataset.update({
+                    "name": dataset_data.get("name", dataset["name"]),
+                    "description": dataset_data.get("description", dataset["description"]),
+                    "type": dataset_data.get("type", dataset["type"])
+                })
+                return {"data": dataset, "message": "Dataset updated successfully"}
+    raise HTTPException(status_code=404, detail="Dataset not found")
+
+@app.delete("/api/v1/workspace/{workspace_id}/dataset/{dataset_id}")
+async def delete_workspace_dataset(workspace_id: str, dataset_id: str):
+    """Delete a specific dataset"""
+    if workspace_id in workspace_datasets_db:
+        workspace_datasets_db[workspace_id] = [
+            ds for ds in workspace_datasets_db[workspace_id] if ds["id"] != dataset_id
+        ]
+        return {"message": "Dataset deleted successfully"}
+    raise HTTPException(status_code=404, detail="Dataset not found")
+
+@app.get("/api/v1/workspace/{workspace_id}/dataset/{dataset_id}/chunks")
+async def get_dataset_chunks(workspace_id: str, dataset_id: str):
+    """Get chunks for a specific dataset"""
+    return {
+        "data": [
+            {
+                "id": "chunk-1",
+                "content": "Sample chunk content for testing...",
+                "metadata": {"source": "sample.txt", "page": 1},
+                "dataset_id": dataset_id
+            }
+        ],
+        "message": "Dataset chunks retrieved successfully"
+    }
+
+@app.get("/api/v1/workspace/{workspace_id}/dataset/{dataset_id}/trainings")
+async def get_dataset_trainings(workspace_id: str, dataset_id: str):
+    """Get training details for a specific dataset"""
+    return {
+        "data": [
+            {
+                "id": "training-1",
+                "status": "completed",
+                "accuracy": 0.95,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "dataset_id": dataset_id
+            }
+        ],
+        "message": "Dataset trainings retrieved successfully"
+    }
+
+# ==================== SEARCH ENDPOINTS ====================
+
+@app.post("/api/v1/workspace/{workspace_id}/search")
+async def workspace_search(workspace_id: str, search_data: dict):
+    """Search within a workspace"""
+    query = search_data.get("query", "")
+    search_type = search_data.get("type", "semantic")
+    
+    # Mock search results
+    mock_results = [
+        {
+            "id": "result-1",
+            "title": f"Search result for '{query}'",
+            "content": f"This is a sample search result for your query: {query}",
+            "source": "sample-document.pdf",
+            "score": 0.85,
+            "workspace_id": workspace_id,
+            "type": search_type
+        },
+        {
+            "id": "result-2", 
+            "title": f"Another result for '{query}'",
+            "content": f"Another relevant result matching your search: {query}",
+            "source": "another-document.txt",
+            "score": 0.78,
+            "workspace_id": workspace_id,
+            "type": search_type
+        }
+    ]
+    
+    return {
+        "data": {
+            "results": mock_results,
+            "total": len(mock_results),
+            "query": query,
+            "search_type": search_type
+        },
+        "message": "Search completed successfully"
+    }
+
+# ==================== TOOLS AND MCP ENDPOINTS ====================
+
+@app.get("/api/v1/workspace/{workspace_id}/tool")
+async def get_workspace_tools(workspace_id: str):
+    """Get tools for a specific workspace"""
+    if workspace_id not in workspace_tools_db:
+        workspace_tools_db[workspace_id] = [
+            {
+                "id": "tool-1",
+                "name": "Sample Tool",
+                "description": "A sample tool for testing",
+                "type": "function",
+                "status": "active",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "workspace_id": workspace_id
+            }
+        ]
+    
+    return {
+        "data": workspace_tools_db[workspace_id],
+        "message": "Tools retrieved successfully"
+    }
+
+@app.post("/api/v1/workspace/{workspace_id}/tool")
+async def create_workspace_tool(workspace_id: str, tool_data: dict):
+    """Create a new tool for a workspace"""
+    if workspace_id not in workspace_tools_db:
+        workspace_tools_db[workspace_id] = []
+    
+    new_tool = {
+        "id": f"tool-{len(workspace_tools_db[workspace_id]) + 1}",
+        "name": tool_data.get("name", "New Tool"),
+        "description": tool_data.get("description", ""),
+        "type": tool_data.get("type", "function"),
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "workspace_id": workspace_id,
+        "config": tool_data.get("config", {})
+    }
+    workspace_tools_db[workspace_id].append(new_tool)
+    return {"data": new_tool, "message": "Tool created successfully"}
+
+@app.get("/api/v1/workspace/{workspace_id}/workspace_tool/{workspace_tool_id}")
+async def get_workspace_tool_by_id(workspace_id: str, workspace_tool_id: str):
+    """Get a specific workspace tool by ID"""
+    if workspace_id in workspace_tools_db:
+        for tool in workspace_tools_db[workspace_id]:
+            if tool["id"] == workspace_tool_id:
+                return {"data": tool, "message": "Tool retrieved successfully"}
+    raise HTTPException(status_code=404, detail="Tool not found")
+
+@app.put("/api/v1/workspace/{workspace_id}/workspace_tool/{workspace_tool_id}")
+async def update_workspace_tool(workspace_id: str, workspace_tool_id: str, tool_data: dict):
+    """Update a specific workspace tool"""
+    if workspace_id in workspace_tools_db:
+        for tool in workspace_tools_db[workspace_id]:
+            if tool["id"] == workspace_tool_id:
+                tool.update({
+                    "name": tool_data.get("name", tool["name"]),
+                    "description": tool_data.get("description", tool["description"]),
+                    "type": tool_data.get("type", tool["type"]),
+                    "config": tool_data.get("config", tool.get("config", {}))
+                })
+                return {"data": tool, "message": "Tool updated successfully"}
+    raise HTTPException(status_code=404, detail="Tool not found")
+
+@app.delete("/api/v1/workspace/{workspace_id}/workspace_tool/{tool_id}")
+async def delete_workspace_tool(workspace_id: str, tool_id: str):
+    """Delete a specific workspace tool"""
+    if workspace_id in workspace_tools_db:
+        workspace_tools_db[workspace_id] = [
+            tool for tool in workspace_tools_db[workspace_id] if tool["id"] != tool_id
+        ]
+        return {"message": "Tool deleted successfully"}
+    raise HTTPException(status_code=404, detail="Tool not found")
+
+# Global tools and MCP endpoints
+@app.get("/api/v1/tool")
+async def get_global_tools(tool_kind: Optional[str] = None, mcp_type: Optional[str] = None):
+    """Get global tools and MCP tools"""
+    if not global_tools_db:
+        global_tools_db.extend([
+            {
+                "id": "mcp-tool-1",
+                "name": "Web Search MCP",
+                "description": "MCP tool for web searching",
+                "tool_kind": "mcp",
+                "mcp_type": "external",
+                "status": "available",
+                "config_schema": {"api_key": "string", "endpoint": "string"}
+            },
+            {
+                "id": "function-tool-1", 
+                "name": "Data Processor",
+                "description": "Function tool for data processing",
+                "tool_kind": "function",
+                "mcp_type": None,
+                "status": "available",
+                "config_schema": {"input_format": "string"}
+            }
+        ])
+    
+    filtered_tools = global_tools_db
+    if tool_kind:
+        filtered_tools = [t for t in filtered_tools if t.get("tool_kind") == tool_kind]
+    if mcp_type:
+        filtered_tools = [t for t in filtered_tools if t.get("mcp_type") == mcp_type]
+    
+    return {"data": filtered_tools, "message": "Tools retrieved successfully"}
+
+@app.post("/api/v1/tool")
+async def create_global_tool(tool_data: dict):
+    """Create a new global tool or MCP"""
+    new_tool = {
+        "id": f"tool-{len(global_tools_db) + 1}",
+        "name": tool_data.get("name", "New Tool"),
+        "description": tool_data.get("description", ""),
+        "tool_kind": tool_data.get("tool_kind", "function"),
+        "mcp_type": tool_data.get("mcp_type"),
+        "status": "available",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "config_schema": tool_data.get("config_schema", {})
+    }
+    global_tools_db.append(new_tool)
+    return {"data": new_tool, "message": "Tool created successfully"}
+
+@app.post("/api/v1/tool/validate-mcp-config")
+async def validate_mcp_config(config_data: dict):
+    """Validate MCP configuration"""
+    # Mock validation
+    return {
+        "valid": True,
+        "message": "MCP configuration is valid",
+        "errors": []
+    }
+
+@app.delete("/api/v1/tool/{tool_id}")
+async def delete_global_tool(tool_id: str):
+    """Delete a global tool"""
+    global global_tools_db
+    global_tools_db = [tool for tool in global_tools_db if tool["id"] != tool_id]
+    return {"message": "Tool deleted successfully"}
+
+@app.put("/api/v1/tool/{tool_id}")
+async def update_global_tool(tool_id: str, tool_data: dict):
+    """Update a global tool"""
+    for tool in global_tools_db:
+        if tool["id"] == tool_id:
+            tool.update({
+                "name": tool_data.get("name", tool["name"]),
+                "description": tool_data.get("description", tool["description"]),
+                "tool_kind": tool_data.get("tool_kind", tool["tool_kind"]),
+                "mcp_type": tool_data.get("mcp_type", tool.get("mcp_type")),
+                "config_schema": tool_data.get("config_schema", tool.get("config_schema", {}))
+            })
+            return {"data": tool, "message": "Tool updated successfully"}
+    raise HTTPException(status_code=404, detail="Tool not found")
+
+# ==================== AGENTS ENDPOINTS ====================
+
+@app.get("/api/v1/workspace/{workspace_id}/agent")
+async def get_workspace_agents(workspace_id: str):
+    """Get agents for a specific workspace"""
+    if workspace_id not in workspace_agents_db:
+        workspace_agents_db[workspace_id] = [
+            {
+                "id": "agent-1",
+                "name": "Sample Agent",
+                "description": "A sample AI agent for testing",
+                "type": "chat",
+                "status": "active",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "workspace_id": workspace_id,
+                "model": "gpt-3.5-turbo",
+                "temperature": 0.7
+            }
+        ]
+    
+    return {
+        "data": workspace_agents_db[workspace_id],
+        "message": "Agents retrieved successfully"
+    }
+
+@app.post("/api/v1/workspace/{workspace_id}/agent")
+async def create_workspace_agent(workspace_id: str, agent_data: dict):
+    """Create a new agent for a workspace"""
+    if workspace_id not in workspace_agents_db:
+        workspace_agents_db[workspace_id] = []
+    
+    new_agent = {
+        "id": f"agent-{len(workspace_agents_db[workspace_id]) + 1}",
+        "name": agent_data.get("name", "New Agent"),
+        "description": agent_data.get("description", ""),
+        "type": agent_data.get("type", "chat"),
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "workspace_id": workspace_id,
+        "model": agent_data.get("model", "gpt-3.5-turbo"),
+        "temperature": agent_data.get("temperature", 0.7),
+        "system_prompt": agent_data.get("system_prompt", "")
+    }
+    workspace_agents_db[workspace_id].append(new_agent)
+    return {"data": new_agent, "message": "Agent created successfully"}
+
+@app.put("/api/v1/workspace/{workspace_id}/agent/{agent_id}")
+async def update_workspace_agent(workspace_id: str, agent_id: str, agent_data: dict):
+    """Update a specific workspace agent"""
+    if workspace_id in workspace_agents_db:
+        for agent in workspace_agents_db[workspace_id]:
+            if agent["id"] == agent_id:
+                agent.update({
+                    "name": agent_data.get("name", agent["name"]),
+                    "description": agent_data.get("description", agent["description"]),
+                    "type": agent_data.get("type", agent["type"]),
+                    "model": agent_data.get("model", agent["model"]),
+                    "temperature": agent_data.get("temperature", agent["temperature"]),
+                    "system_prompt": agent_data.get("system_prompt", agent.get("system_prompt", ""))
+                })
+                return {"data": agent, "message": "Agent updated successfully"}
+    raise HTTPException(status_code=404, detail="Agent not found")
+
+@app.delete("/api/v1/workspace/{workspace_id}/agent/{agent_id}")
+async def delete_workspace_agent(workspace_id: str, agent_id: str):
+    """Delete a specific workspace agent"""
+    if workspace_id in workspace_agents_db:
+        workspace_agents_db[workspace_id] = [
+            agent for agent in workspace_agents_db[workspace_id] if agent["id"] != agent_id
+        ]
+        return {"message": "Agent deleted successfully"}
+    raise HTTPException(status_code=404, detail="Agent not found")
+
+# ==================== CHAT APP ENDPOINTS ====================
+
+@app.get("/api/v1/workspace/{workspace_id}/chat_apps")
+async def get_workspace_chat_apps(workspace_id: str):
+    """Get chat apps for a specific workspace"""
+    if workspace_id not in workspace_chat_apps_db:
+        workspace_chat_apps_db[workspace_id] = [
+            {
+                "id": "chat-app-1",
+                "name": "Workspace Chat Assistant",
+                "description": "AI chat assistant for this workspace",
+                "type": "unstructured_chat_app",
+                "status": "active",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "workspace_id": workspace_id,
+                "model": "gpt-3.5-turbo",
+                "temperature": 0.7
+            }
+        ]
+    
+    return {
+        "data": workspace_chat_apps_db[workspace_id],
+        "message": "Chat apps retrieved successfully"
+    }
+
+@app.post("/api/v1/workspace/{workspace_id}/chat_app")
+async def create_workspace_chat_app(workspace_id: str, chat_app_data: dict):
+    """Create a new chat app for a workspace"""
+    if workspace_id not in workspace_chat_apps_db:
+        workspace_chat_apps_db[workspace_id] = []
+    
+    new_chat_app = {
+        "id": f"chat-app-{len(workspace_chat_apps_db[workspace_id]) + 1}",
+        "name": chat_app_data.get("name", "New Chat App"),
+        "description": chat_app_data.get("description", ""),
+        "type": chat_app_data.get("type", "unstructured_chat_app"),
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "workspace_id": workspace_id,
+        "model": chat_app_data.get("model", "gpt-3.5-turbo"),
+        "temperature": chat_app_data.get("temperature", 0.7)
+    }
+    workspace_chat_apps_db[workspace_id].append(new_chat_app)
+    return {"data": new_chat_app, "message": "Chat app created successfully"}
+
+@app.get("/api/v1/workspace/{workspace_id}/chat_app/{chat_app_id}")
+async def get_workspace_chat_app_by_id(workspace_id: str, chat_app_id: str):
+    """Get a specific chat app by ID"""
+    if workspace_id in workspace_chat_apps_db:
+        for chat_app in workspace_chat_apps_db[workspace_id]:
+            if chat_app["id"] == chat_app_id:
+                return {"data": chat_app, "message": "Chat app retrieved successfully"}
+    raise HTTPException(status_code=404, detail="Chat app not found")
+
+@app.put("/api/v1/workspace/{workspace_id}/chat_app/{chat_app_id}")
+async def update_workspace_chat_app(workspace_id: str, chat_app_id: str, chat_app_data: dict):
+    """Update a specific workspace chat app"""
+    if workspace_id in workspace_chat_apps_db:
+        for chat_app in workspace_chat_apps_db[workspace_id]:
+            if chat_app["id"] == chat_app_id:
+                chat_app.update({
+                    "name": chat_app_data.get("name", chat_app["name"]),
+                    "description": chat_app_data.get("description", chat_app["description"]),
+                    "type": chat_app_data.get("type", chat_app["type"]),
+                    "model": chat_app_data.get("model", chat_app["model"]),
+                    "temperature": chat_app_data.get("temperature", chat_app["temperature"])
+                })
+                return {"data": chat_app, "message": "Chat app updated successfully"}
+    raise HTTPException(status_code=404, detail="Chat app not found")
+
+@app.delete("/api/v1/workspace/{workspace_id}/chat_app/{chat_app_id}")
+async def delete_workspace_chat_app(workspace_id: str, chat_app_id: str):
+    """Delete a specific workspace chat app"""
+    if workspace_id in workspace_chat_apps_db:
+        workspace_chat_apps_db[workspace_id] = [
+            app for app in workspace_chat_apps_db[workspace_id] if app["id"] != chat_app_id
+        ]
+        return {"message": "Chat app deleted successfully"}
+    raise HTTPException(status_code=404, detail="Chat app not found")
+
+# ==================== USERS ENDPOINTS ====================
+
+@app.get("/api/v1/user/list")
+async def get_users_list(organization_id: Optional[str] = None, page: int = 1, size: int = 25):
+    """Get users list"""
+    if not users_db:
+        users_db.extend([
+            {
+                "id": "user-1",
+                "email": "admin@amplifi.com",
+                "name": "Admin User",
+                "role": "admin",
+                "status": "active",
+                "organization_id": "test-org-123",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            },
+            {
+                "id": "user-2",
+                "email": "developer@amplifi.com", 
+                "name": "Developer User",
+                "role": "developer",
+                "status": "active",
+                "organization_id": "test-org-123",
+                "created_at": datetime.now(timezone.utc).isoformat()
+            }
+        ])
+    
+    filtered_users = users_db
+    if organization_id:
+        filtered_users = [u for u in users_db if u.get("organization_id") == organization_id]
+    
+    # Simple pagination
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_users = filtered_users[start_idx:end_idx]
+    
+    return {
+        "data": {
+            "items": paginated_users,
+            "total": len(filtered_users),
+            "page": page,
+            "size": size,
+            "pages": (len(filtered_users) + size - 1) // size if size > 0 else 1
+        },
+        "message": "Users retrieved successfully"
+    }
+
+@app.post("/api/v1/user/invite-user")
+async def invite_user(user_data: dict):
+    """Invite a new user"""
+    new_user = {
+        "id": f"user-{len(users_db) + 1}",
+        "email": user_data.get("email", ""),
+        "name": user_data.get("name", ""),
+        "role": user_data.get("role", "user"),
+        "status": "invited",
+        "organization_id": user_data.get("organization_id", "test-org-123"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "invited_at": datetime.now(timezone.utc).isoformat()
+    }
+    users_db.append(new_user)
+    return {"data": new_user, "message": "User invitation sent successfully"}
+
+@app.delete("/api/v1/user/{user_id}")
+async def delete_user(user_id: str):
+    """Delete a user"""
+    global users_db
+    users_db = [user for user in users_db if user["id"] != user_id]
+    return {"message": "User deleted successfully"}
 
 if __name__ == "__main__":
     import uvicorn
