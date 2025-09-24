@@ -75,6 +75,12 @@ import plotly.express as px
 import json
 import io
 import uuid
+import re
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import jaccard_score
+from collections import defaultdict
+import networkx as nx
+from typing import Tuple, Any
 
 # Simple in-memory data store for testing (in production, use real database)
 simple_users_db: Dict[int, Dict] = {}  # Simple user store for basic CRUD
@@ -2081,6 +2087,1059 @@ async def get_workspace_users_v2(
         },
         "message": "Workspace users retrieved successfully"
     }
+
+# ==================== ADVANCED POWERBI HELPER FUNCTIONS ====================
+
+def calculate_column_similarity(col1: pd.Series, col2: pd.Series, name1: str, name2: str) -> float:
+    """Calculate similarity between two columns for relationship detection"""
+    try:
+        # Name similarity (40% weight)
+        name_sim = calculate_name_similarity(name1, name2)
+        
+        # Value overlap similarity (40% weight)
+        value_sim = calculate_value_overlap(col1, col2)
+        
+        # Type compatibility (20% weight)
+        type_sim = calculate_type_compatibility(col1, col2)
+        
+        # Weighted combination
+        confidence = (name_sim * 0.4) + (value_sim * 0.4) + (type_sim * 0.2)
+        return min(confidence, 1.0)
+    
+    except Exception:
+        return 0.0
+
+def calculate_name_similarity(name1: str, name2: str) -> float:
+    """Calculate similarity between column names"""
+    name1_clean = re.sub(r'[^a-zA-Z0-9]', '', name1.lower())
+    name2_clean = re.sub(r'[^a-zA-Z0-9]', '', name2.lower())
+    
+    # Exact match
+    if name1_clean == name2_clean:
+        return 1.0
+    
+    # Check for ID/key patterns
+    id_patterns = ['id', 'key', 'code', 'ref']
+    name1_is_id = any(pattern in name1_clean for pattern in id_patterns)
+    name2_is_id = any(pattern in name2_clean for pattern in id_patterns)
+    
+    if name1_is_id and name2_is_id:
+        # Check if base names are similar
+        name1_base = re.sub(r'(id|key|code|ref)$', '', name1_clean)
+        name2_base = re.sub(r'(id|key|code|ref)$', '', name2_clean)
+        
+        if name1_base and name2_base:
+            if name1_base == name2_base:
+                return 0.9
+            elif name1_base in name2_base or name2_base in name1_base:
+                return 0.7
+    
+    # Substring similarity
+    if name1_clean in name2_clean or name2_clean in name1_clean:
+        return 0.6
+    
+    return 0.0
+
+def calculate_value_overlap(col1: pd.Series, col2: pd.Series) -> float:
+    """Calculate value overlap between two columns"""
+    try:
+        # Remove nulls and get unique values
+        vals1 = set(col1.dropna().astype(str).unique())
+        vals2 = set(col2.dropna().astype(str).unique())
+        
+        if not vals1 or not vals2:
+            return 0.0
+        
+        # Calculate Jaccard similarity
+        intersection = len(vals1 & vals2)
+        union = len(vals1 | vals2)
+        
+        if union == 0:
+            return 0.0
+        
+        jaccard = intersection / union
+        
+        # Boost score if there's significant overlap
+        if intersection > min(len(vals1), len(vals2)) * 0.3:
+            jaccard *= 1.2
+        
+        return min(jaccard, 1.0)
+    
+    except Exception:
+        return 0.0
+
+def calculate_type_compatibility(col1: pd.Series, col2: pd.Series) -> float:
+    """Calculate type compatibility between columns"""
+    try:
+        dtype1 = str(col1.dtype)
+        dtype2 = str(col2.dtype)
+        
+        # Same type
+        if dtype1 == dtype2:
+            return 1.0
+        
+        # Compatible numeric types
+        numeric_types = ['int', 'float']
+        if any(t in dtype1 for t in numeric_types) and any(t in dtype2 for t in numeric_types):
+            return 0.8
+        
+        # Both are object types (could be strings/mixed)
+        if dtype1 == 'object' and dtype2 == 'object':
+            return 0.7
+        
+        # One numeric, one object (could be string IDs)
+        if (any(t in dtype1 for t in numeric_types) and dtype2 == 'object') or \
+           (any(t in dtype2 for t in numeric_types) and dtype1 == 'object'):
+            return 0.5
+        
+        return 0.3
+    
+    except Exception:
+        return 0.3
+
+def determine_relationship_type(col1: pd.Series, col2: pd.Series, name1: str, name2: str) -> str:
+    """Determine the type of relationship between two columns"""
+    try:
+        # Get unique counts
+        unique1 = col1.nunique()
+        unique2 = col2.nunique()
+        total1 = len(col1.dropna())
+        total2 = len(col2.dropna())
+        
+        # Calculate uniqueness ratios
+        ratio1 = unique1 / total1 if total1 > 0 else 0
+        ratio2 = unique2 / total2 if total2 > 0 else 0
+        
+        # One-to-One: both columns have unique values
+        if ratio1 > 0.95 and ratio2 > 0.95:
+            return "one-to-one"
+        
+        # One-to-Many: one column is mostly unique, other is not
+        elif ratio1 > 0.95 and ratio2 < 0.8:
+            return "one-to-many"
+        elif ratio2 > 0.95 and ratio1 < 0.8:
+            return "many-to-one"
+        
+        # Many-to-Many: both columns have duplicates
+        else:
+            return "many-to-many"
+    
+    except Exception:
+        return "unknown"
+
+def generate_professional_plotly_theme():
+    """Generate professional Plotly theme consistent with the application"""
+    return {
+        'layout': {
+            'paper_bgcolor': '#ffffff',
+            'plot_bgcolor': '#fafafa',
+            'font': {
+                'family': 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
+                'size': 12,
+                'color': '#374151'
+            },
+            'title': {
+                'font': {
+                    'size': 16,
+                    'color': '#111827',
+                    'family': 'Inter, -apple-system, BlinkMacSystemFont, sans-serif'
+                },
+                'x': 0.5,
+                'xanchor': 'center'
+            },
+            'xaxis': {
+                'gridcolor': '#e5e7eb',
+                'linecolor': '#d1d5db',
+                'tickcolor': '#9ca3af',
+                'title_font': {'color': '#374151'},
+                'tickfont': {'color': '#6b7280'}
+            },
+            'yaxis': {
+                'gridcolor': '#e5e7eb',
+                'linecolor': '#d1d5db',
+                'tickcolor': '#9ca3af',
+                'title_font': {'color': '#374151'},
+                'tickfont': {'color': '#6b7280'}
+            },
+            'legend': {
+                'bgcolor': 'rgba(255, 255, 255, 0.8)',
+                'bordercolor': '#e5e7eb',
+                'borderwidth': 1
+            },
+            'margin': {'t': 60, 'r': 30, 'b': 50, 'l': 60}
+        },
+        'colorway': [
+            '#374AF1',  # Primary blue
+            '#64AC01',  # Green
+            '#FF6B6B',  # Red
+            '#4ECDC4',  # Teal
+            '#45B7D1',  # Light blue
+            '#96CEB4',  # Light green
+            '#FCEA2B',  # Yellow
+            '#FF9FF3',  # Pink
+            '#54A0FF',  # Sky blue
+            '#FF9F43'   # Orange
+        ]
+    }
+
+def create_professional_chart(chart_type: str, data: pd.DataFrame, config: Dict) -> go.Figure:
+    """Create professional chart with consistent styling"""
+    theme = generate_professional_plotly_theme()
+    
+    fig = None
+    
+    if chart_type == 'bar':
+        fig = px.bar(
+            data, 
+            x=config.get('x'), 
+            y=config.get('y'),
+            color=config.get('color'),
+            title=config.get('title', ''),
+            color_discrete_sequence=theme['colorway']
+        )
+    
+    elif chart_type == 'line':
+        fig = px.line(
+            data, 
+            x=config.get('x'), 
+            y=config.get('y'),
+            color=config.get('color'),
+            title=config.get('title', ''),
+            color_discrete_sequence=theme['colorway']
+        )
+    
+    elif chart_type == 'scatter':
+        fig = px.scatter(
+            data, 
+            x=config.get('x'), 
+            y=config.get('y'),
+            color=config.get('color'),
+            size=config.get('size'),
+            title=config.get('title', ''),
+            color_discrete_sequence=theme['colorway']
+        )
+    
+    elif chart_type == 'pie':
+        fig = px.pie(
+            data, 
+            values=config.get('values'), 
+            names=config.get('names'),
+            title=config.get('title', ''),
+            color_discrete_sequence=theme['colorway']
+        )
+    
+    elif chart_type == 'histogram':
+        fig = px.histogram(
+            data, 
+            x=config.get('x'),
+            color=config.get('color'),
+            title=config.get('title', ''),
+            color_discrete_sequence=theme['colorway']
+        )
+    
+    elif chart_type == 'box':
+        fig = px.box(
+            data, 
+            x=config.get('x'), 
+            y=config.get('y'),
+            color=config.get('color'),
+            title=config.get('title', ''),
+            color_discrete_sequence=theme['colorway']
+        )
+    
+    elif chart_type == 'heatmap':
+        if 'z' in config:
+            fig = px.imshow(
+                config['z'],
+                title=config.get('title', ''),
+                color_continuous_scale='Blues'
+            )
+    
+    if fig:
+        # Apply professional theme
+        fig.update_layout(theme['layout'])
+        
+        # Add hover styling
+        fig.update_traces(
+            hoverlabel=dict(
+                bgcolor="white",
+                font_size=12,
+                font_family="Inter"
+            )
+        )
+    
+    return fig
+
+def generate_entity_relationship_graph(files_data: Dict, relationships: List[Dict]) -> Dict:
+    """Generate entity relationship graph data for visualization"""
+    try:
+        # Create NetworkX graph
+        G = nx.Graph()
+        
+        # Add nodes (tables)
+        for file_id, file_data in files_data.items():
+            G.add_node(file_id, 
+                      label=file_data['filename'],
+                      size=len(file_data['columns']),
+                      type='table')
+        
+        # Add edges (relationships)
+        for rel in relationships:
+            G.add_edge(
+                rel['from_table'], 
+                rel['to_table'],
+                weight=rel['confidence'],
+                type=rel['relationship_type'],
+                from_column=rel['from_column'],
+                to_column=rel['to_column']
+            )
+        
+        # Calculate layout
+        pos = nx.spring_layout(G, k=3, iterations=50)
+        
+        # Convert to visualization format
+        nodes = []
+        edges = []
+        
+        for node_id, data in G.nodes(data=True):
+            file_data = files_data[node_id]
+            nodes.append({
+                'id': node_id,
+                'label': data['label'],
+                'x': pos[node_id][0] * 300,
+                'y': pos[node_id][1] * 300,
+                'size': max(20, min(60, data['size'] * 2)),
+                'color': '#374AF1',
+                'columns': file_data['columns'],
+                'row_count': file_data['row_count']
+            })
+        
+        for edge in G.edges(data=True):
+            edges.append({
+                'from': edge[0],
+                'to': edge[1],
+                'weight': edge[2]['weight'],
+                'type': edge[2]['type'],
+                'from_column': edge[2]['from_column'],
+                'to_column': edge[2]['to_column'],
+                'color': '#64AC01' if edge[2]['weight'] > 0.8 else '#FF6B6B'
+            })
+        
+        return {
+            'nodes': nodes,
+            'edges': edges,
+            'stats': {
+                'total_tables': len(nodes),
+                'total_relationships': len(edges),
+                'avg_confidence': sum(e['weight'] for e in edges) / len(edges) if edges else 0
+            }
+        }
+    
+    except Exception as e:
+        return {
+            'nodes': [],
+            'edges': [],
+            'stats': {'total_tables': 0, 'total_relationships': 0, 'avg_confidence': 0},
+            'error': str(e)
+        }
+
+def process_natural_language_query(query: str, files_data: Dict) -> Dict:
+    """Process natural language query to generate report specification"""
+    try:
+        query_lower = query.lower()
+        
+        # Extract key components
+        result = {
+            'type': 'unknown',
+            'tables': [],
+            'columns': [],
+            'filters': [],
+            'aggregations': [],
+            'limit': None,
+            'order': 'desc'
+        }
+        
+        # Detect query type
+        if any(word in query_lower for word in ['top', 'highest', 'largest', 'maximum']):
+            result['type'] = 'top_n'
+            result['order'] = 'desc'
+        elif any(word in query_lower for word in ['bottom', 'lowest', 'smallest', 'minimum']):
+            result['type'] = 'top_n'
+            result['order'] = 'asc'
+        elif any(word in query_lower for word in ['compare', 'comparison', 'vs', 'versus']):
+            result['type'] = 'comparison'
+        elif any(word in query_lower for word in ['trend', 'over time', 'timeline']):
+            result['type'] = 'trend'
+        elif any(word in query_lower for word in ['distribution', 'breakdown', 'by']):
+            result['type'] = 'distribution'
+        else:
+            result['type'] = 'general'
+        
+        # Extract numbers (for top N queries)
+        numbers = re.findall(r'\b(\d+)\b', query)
+        if numbers:
+            result['limit'] = int(numbers[0])
+        
+        # Try to match table/column names
+        for file_id, file_data in files_data.items():
+            filename_base = file_data['filename'].lower().replace('.csv', '')
+            if filename_base in query_lower:
+                result['tables'].append(file_id)
+            
+            for column in file_data['columns']:
+                if column.lower() in query_lower:
+                    result['columns'].append({
+                        'table': file_id,
+                        'column': column,
+                        'type': file_data['column_types'].get(column, 'unknown')
+                    })
+        
+        # Generate suggested chart type
+        if result['type'] == 'top_n':
+            result['suggested_chart'] = 'bar'
+        elif result['type'] == 'trend':
+            result['suggested_chart'] = 'line'
+        elif result['type'] == 'distribution':
+            result['suggested_chart'] = 'pie'
+        elif result['type'] == 'comparison':
+            result['suggested_chart'] = 'bar'
+        else:
+            result['suggested_chart'] = 'table'
+        
+        return result
+    
+    except Exception as e:
+        return {
+            'type': 'error',
+            'error': str(e),
+            'suggested_chart': 'table'
+        }
+
+# ==================== SESSION-BASED CSV MANAGEMENT ====================
+
+csv_sessions_db: Dict[str, Dict] = {}  # Store CSV sessions
+
+class CSVSessionCreate(BaseModel):
+    """CSV session creation model"""
+    name: str
+    description: Optional[str] = ""
+    workspace_id: Optional[str] = "default"
+
+class CSVSessionResponse(BaseModel):
+    """CSV session response model"""
+    session_id: str
+    name: str
+    description: str
+    workspace_id: str
+    created_at: str
+    file_count: int
+    total_rows: int
+
+@app.post("/api/v1/csv/session", response_model=CSVSessionResponse)
+async def create_csv_session(session: CSVSessionCreate):
+    """Create a new CSV analysis session"""
+    session_id = str(uuid.uuid4())
+    
+    session_data = {
+        "session_id": session_id,
+        "name": session.name,
+        "description": session.description,
+        "workspace_id": session.workspace_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "files": [],
+        "relationships": [],
+        "dashboards": []
+    }
+    
+    csv_sessions_db[session_id] = session_data
+    
+    return CSVSessionResponse(
+        session_id=session_id,
+        name=session.name,
+        description=session.description,
+        workspace_id=session.workspace_id,
+        created_at=session_data["created_at"],
+        file_count=0,
+        total_rows=0
+    )
+
+@app.post("/api/v1/csv/session/{session_id}/upload", response_model=MultiCSVUploadResponse)
+async def upload_to_session(session_id: str, file: UploadFile = File(...)):
+    """Upload CSV file to existing session"""
+    if session_id not in csv_sessions_db:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    if not file.filename.lower().endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+    
+    try:
+        # Read CSV content
+        content = await file.read()
+        csv_content = content.decode('utf-8')
+        
+        # Parse CSV with pandas
+        df = pd.read_csv(io.StringIO(csv_content))
+        
+        # Generate unique file ID
+        file_id = str(uuid.uuid4())
+        
+        # Enhanced analysis
+        columns = df.columns.tolist()
+        row_count = len(df)
+        file_size = len(content)
+        
+        column_types = {}
+        potential_keys = []
+        
+        for col in df.columns:
+            dtype = str(df[col].dtype)
+            
+            # Enhanced type detection
+            if dtype.startswith('int') or dtype.startswith('float'):
+                column_types[col] = 'numeric'
+                if (col.lower().endswith('id') or col.lower().endswith('key') or 
+                    'id' in col.lower() or df[col].nunique() == len(df)):
+                    potential_keys.append(col)
+            elif dtype == 'object':
+                try:
+                    pd.to_datetime(df[col].head(10), errors='raise')
+                    column_types[col] = 'date'
+                except:
+                    column_types[col] = 'text'
+                    if (col.lower().endswith('id') or col.lower().endswith('key') or 
+                        'id' in col.lower()):
+                        potential_keys.append(col)
+            elif 'datetime' in dtype:
+                column_types[col] = 'date'
+            else:
+                column_types[col] = 'other'
+        
+        preview_data = df.head(5).fillna("").to_dict('records')
+        
+        # Store file data
+        file_data = {
+            "file_id": file_id,
+            "filename": file.filename,
+            "dataframe": df,
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "columns": columns,
+            "row_count": row_count,
+            "file_size": file_size,
+            "column_types": column_types,
+            "potential_keys": potential_keys,
+            "data_sample": df.head(100).to_dict('records')
+        }
+        
+        csv_files_db[file_id] = file_data
+        csv_sessions_db[session_id]["files"].append(file_id)
+        
+        return MultiCSVUploadResponse(
+            file_id=file_id,
+            filename=file.filename,
+            columns=columns,
+            row_count=row_count,
+            file_size=file_size,
+            preview_data=preview_data,
+            column_types=column_types,
+            potential_keys=potential_keys
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error processing CSV file: {str(e)}")
+
+@app.get("/api/v1/csv/session/{session_id}")
+async def get_session(session_id: str):
+    """Get session details with all files and statistics"""
+    if session_id not in csv_sessions_db:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = csv_sessions_db[session_id]
+    files_data = []
+    total_rows = 0
+    
+    for file_id in session["files"]:
+        if file_id in csv_files_db:
+            file_data = csv_files_db[file_id]
+            files_data.append({
+                "file_id": file_id,
+                "filename": file_data["filename"],
+                "columns": file_data["columns"],
+                "row_count": file_data["row_count"],
+                "column_types": file_data["column_types"],
+                "potential_keys": file_data["potential_keys"]
+            })
+            total_rows += file_data["row_count"]
+    
+    return {
+        **session,
+        "files_data": files_data,
+        "file_count": len(files_data),
+        "total_rows": total_rows,
+        "relationship_count": len(session["relationships"])
+    }
+
+@app.post("/api/v1/csv/session/{session_id}/detect-relationships")
+async def detect_session_relationships(session_id: str):
+    """Detect relationships between all files in a session"""
+    if session_id not in csv_sessions_db:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = csv_sessions_db[session_id]
+    file_ids = session["files"]
+    
+    if len(file_ids) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 files required for relationship detection")
+    
+    # Validate all files exist
+    for file_id in file_ids:
+        if file_id not in csv_files_db:
+            raise HTTPException(status_code=404, detail=f"CSV file {file_id} not found")
+    
+    try:
+        relationships = []
+        files_data = {fid: csv_files_db[fid] for fid in file_ids}
+        
+        # Compare each pair of files
+        for i, file_id_1 in enumerate(file_ids):
+            for file_id_2 in file_ids[i+1:]:
+                file_1 = files_data[file_id_1]
+                file_2 = files_data[file_id_2]
+                df_1 = file_1["dataframe"]
+                df_2 = file_2["dataframe"]
+                
+                # Check for potential relationships
+                for col_1 in file_1["columns"]:
+                    for col_2 in file_2["columns"]:
+                        # Calculate relationship confidence
+                        confidence = calculate_column_similarity(
+                            df_1[col_1], df_2[col_2], col_1, col_2
+                        )
+                        
+                        if confidence > 0.5:  # Minimum confidence threshold
+                            # Determine relationship type
+                            rel_type = determine_relationship_type(
+                                df_1[col_1], df_2[col_2], col_1, col_2
+                            )
+                            
+                            # Count matching values
+                            matches = len(set(df_1[col_1].dropna()) & set(df_2[col_2].dropna()))
+                            
+                            relationships.append({
+                                "from_table": file_id_1,
+                                "from_column": col_1,
+                                "to_table": file_id_2,
+                                "to_column": col_2,
+                                "relationship_type": rel_type,
+                                "confidence": confidence,
+                                "match_count": matches
+                            })
+        
+        # Sort by confidence
+        relationships.sort(key=lambda x: x["confidence"], reverse=True)
+        
+        # Generate entity relationship graph
+        graph_data = generate_entity_relationship_graph(files_data, relationships)
+        
+        # Store relationships in session
+        csv_sessions_db[session_id]["relationships"] = relationships
+        
+        return {
+            "relationships": relationships,
+            "graph_data": graph_data,
+            "total_tables": len(file_ids),
+            "total_relationships": len(relationships)
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error detecting relationships: {str(e)}")
+
+@app.get("/api/v1/csv/session/{session_id}/entity-graph")
+async def get_entity_relationship_graph(session_id: str):
+    """Get entity relationship graph for session"""
+    if session_id not in csv_sessions_db:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = csv_sessions_db[session_id]
+    files_data = {fid: csv_files_db[fid] for fid in session["files"] if fid in csv_files_db}
+    relationships = session.get("relationships", [])
+    
+    graph_data = generate_entity_relationship_graph(files_data, relationships)
+    
+    return {
+        "graph_data": graph_data,
+        "session_id": session_id,
+        "files_count": len(files_data),
+        "relationships_count": len(relationships)
+    }
+
+# ==================== ADVANCED DASHBOARD GENERATION ====================
+
+class DashboardConfig(BaseModel):
+    """Dashboard configuration model"""
+    session_id: str
+    name: str
+    description: Optional[str] = ""
+    charts: List[Dict]
+    layout: Optional[Dict] = None
+    filters: Optional[List[Dict]] = None
+
+class QueryReportRequest(BaseModel):
+    """Query-based report request model"""
+    session_id: str
+    query: str
+    chart_preferences: Optional[Dict] = None
+
+@app.post("/api/v1/csv/dashboard/generate")
+async def generate_professional_dashboard(config: DashboardConfig):
+    """Generate professional PowerBI-style dashboard"""
+    if config.session_id not in csv_sessions_db:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = csv_sessions_db[config.session_id]
+    files_data = {fid: csv_files_db[fid] for fid in session["files"] if fid in csv_files_db}
+    
+    try:
+        dashboard_id = str(uuid.uuid4())
+        dashboard_charts = []
+        
+        for chart_config in config.charts:
+            chart_type = chart_config.get("type", "bar")
+            table_id = chart_config.get("table_id")
+            
+            if table_id not in files_data:
+                continue
+            
+            file_data = files_data[table_id]
+            df = file_data["dataframe"]
+            
+            # Process chart configuration
+            processed_config = {
+                "title": chart_config.get("title", ""),
+                "x": chart_config.get("x_column"),
+                "y": chart_config.get("y_column"),
+                "color": chart_config.get("color_column"),
+                "size": chart_config.get("size_column")
+            }
+            
+            # Apply filters if specified
+            filtered_df = df.copy()
+            if "filters" in chart_config:
+                for filter_config in chart_config["filters"]:
+                    column = filter_config.get("column")
+                    operator = filter_config.get("operator", "equals")
+                    value = filter_config.get("value")
+                    
+                    if column in filtered_df.columns:
+                        if operator == "equals":
+                            filtered_df = filtered_df[filtered_df[column] == value]
+                        elif operator == "not_equals":
+                            filtered_df = filtered_df[filtered_df[column] != value]
+                        elif operator == "greater_than":
+                            filtered_df = filtered_df[filtered_df[column] > value]
+                        elif operator == "less_than":
+                            filtered_df = filtered_df[filtered_df[column] < value]
+                        elif operator == "contains":
+                            filtered_df = filtered_df[filtered_df[column].astype(str).str.contains(str(value), na=False)]
+            
+            # Apply aggregations if specified
+            if "aggregation" in chart_config:
+                agg_config = chart_config["aggregation"]
+                group_by = agg_config.get("group_by")
+                metric = agg_config.get("metric")
+                operation = agg_config.get("operation", "sum")
+                
+                if group_by and metric and group_by in filtered_df.columns and metric in filtered_df.columns:
+                    if operation == "sum":
+                        filtered_df = filtered_df.groupby(group_by)[metric].sum().reset_index()
+                    elif operation == "avg":
+                        filtered_df = filtered_df.groupby(group_by)[metric].mean().reset_index()
+                    elif operation == "count":
+                        filtered_df = filtered_df.groupby(group_by)[metric].count().reset_index()
+                    elif operation == "max":
+                        filtered_df = filtered_df.groupby(group_by)[metric].max().reset_index()
+                    elif operation == "min":
+                        filtered_df = filtered_df.groupby(group_by)[metric].min().reset_index()
+            
+            # Generate professional chart
+            fig = create_professional_chart(chart_type, filtered_df, processed_config)
+            
+            if fig:
+                chart_data = {
+                    "id": str(uuid.uuid4()),
+                    "type": chart_type,
+                    "title": processed_config["title"],
+                    "plotly_json": fig.to_json(),
+                    "config": chart_config,
+                    "data_summary": {
+                        "rows": len(filtered_df),
+                        "columns": list(filtered_df.columns)
+                    }
+                }
+                dashboard_charts.append(chart_data)
+        
+        # Create dashboard
+        dashboard = {
+            "dashboard_id": dashboard_id,
+            "session_id": config.session_id,
+            "name": config.name,
+            "description": config.description,
+            "charts": dashboard_charts,
+            "layout": config.layout,
+            "filters": config.filters,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "total_charts": len(dashboard_charts)
+        }
+        
+        # Store dashboard
+        csv_sessions_db[config.session_id]["dashboards"].append(dashboard_id)
+        power_bi_reports_db[dashboard_id] = dashboard
+        
+        return dashboard
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error generating dashboard: {str(e)}")
+
+@app.post("/api/v1/csv/query-report")
+async def generate_query_based_report(request: QueryReportRequest):
+    """Generate report based on natural language query"""
+    if request.session_id not in csv_sessions_db:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = csv_sessions_db[request.session_id]
+    files_data = {fid: csv_files_db[fid] for fid in session["files"] if fid in csv_files_db}
+    
+    try:
+        # Process natural language query
+        query_spec = process_natural_language_query(request.query, files_data)
+        
+        # Generate appropriate visualization
+        if query_spec["type"] == "error":
+            raise HTTPException(status_code=400, detail=f"Error processing query: {query_spec.get('error', 'Unknown error')}")
+        
+        charts = []
+        report_data = []
+        
+        # If specific tables/columns were identified
+        if query_spec["tables"] and query_spec["columns"]:
+            for table_info in query_spec["columns"]:
+                table_id = table_info["table"]
+                column = table_info["column"]
+                
+                if table_id in files_data:
+                    df = files_data[table_id]["dataframe"]
+                    
+                    # Generate chart based on query type
+                    chart_config = {
+                        "title": f"{request.query} - {files_data[table_id]['filename']}",
+                        "type": query_spec["suggested_chart"]
+                    }
+                    
+                    if query_spec["type"] == "top_n" and query_spec["limit"]:
+                        # Create top N chart
+                        if table_info["type"] == "numeric":
+                            sorted_df = df.nlargest(query_spec["limit"], column) if query_spec["order"] == "desc" else df.nsmallest(query_spec["limit"], column)
+                            chart_config.update({
+                                "x": column,
+                                "y": "index"
+                            })
+                        else:
+                            # For text columns, show value counts
+                            value_counts = df[column].value_counts().head(query_spec["limit"])
+                            sorted_df = value_counts.reset_index()
+                            sorted_df.columns = [column, "count"]
+                            chart_config.update({
+                                "x": column,
+                                "y": "count"
+                            })
+                        
+                        fig = create_professional_chart(query_spec["suggested_chart"], sorted_df, chart_config)
+                        
+                    elif query_spec["type"] == "distribution":
+                        # Create distribution chart
+                        if table_info["type"] == "numeric":
+                            chart_config.update({"x": column})
+                            fig = create_professional_chart("histogram", df, chart_config)
+                        else:
+                            value_counts = df[column].value_counts()
+                            chart_config.update({
+                                "values": value_counts.values,
+                                "names": value_counts.index
+                            })
+                            fig = create_professional_chart("pie", df, chart_config)
+                    
+                    else:
+                        # Default visualization
+                        chart_config.update({"x": column})
+                        fig = create_professional_chart(query_spec["suggested_chart"], df, chart_config)
+                    
+                    if fig:
+                        charts.append({
+                            "id": str(uuid.uuid4()),
+                            "title": chart_config["title"],
+                            "type": query_spec["suggested_chart"],
+                            "plotly_json": fig.to_json(),
+                            "table": table_id,
+                            "column": column
+                        })
+        
+        # Create report
+        report_id = str(uuid.uuid4())
+        report = {
+            "report_id": report_id,
+            "session_id": request.session_id,
+            "query": request.query,
+            "query_spec": query_spec,
+            "charts": charts,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "total_charts": len(charts)
+        }
+        
+        power_bi_reports_db[report_id] = report
+        
+        return report
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error generating query report: {str(e)}")
+
+@app.get("/api/v1/csv/dashboard/{dashboard_id}")
+async def get_dashboard(dashboard_id: str):
+    """Get specific dashboard by ID"""
+    if dashboard_id not in power_bi_reports_db:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+    
+    return power_bi_reports_db[dashboard_id]
+
+@app.get("/api/v1/csv/session/{session_id}/dashboards")
+async def get_session_dashboards(session_id: str):
+    """Get all dashboards for a session"""
+    if session_id not in csv_sessions_db:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = csv_sessions_db[session_id]
+    dashboard_ids = session.get("dashboards", [])
+    
+    dashboards = []
+    for dashboard_id in dashboard_ids:
+        if dashboard_id in power_bi_reports_db:
+            dashboard = power_bi_reports_db[dashboard_id]
+            # Return summary without full chart data
+            dashboards.append({
+                "dashboard_id": dashboard["dashboard_id"],
+                "name": dashboard["name"],
+                "description": dashboard["description"],
+                "created_at": dashboard["created_at"],
+                "total_charts": dashboard["total_charts"]
+            })
+    
+    return {
+        "session_id": session_id,
+        "dashboards": dashboards,
+        "total": len(dashboards)
+    }
+
+# ==================== ADVANCED COLUMN SELECTION ====================
+
+class ColumnSelectionConfig(BaseModel):
+    """Advanced column selection configuration"""
+    session_id: str
+    tables: List[Dict]  # Each dict contains table_id and selected columns
+    join_config: Optional[List[Dict]] = None  # Join specifications
+    filters: Optional[List[Dict]] = None
+    aggregations: Optional[List[Dict]] = None
+
+@app.post("/api/v1/csv/column-selection/preview")
+async def preview_column_selection(config: ColumnSelectionConfig):
+    """Preview data based on column selection and joins"""
+    if config.session_id not in csv_sessions_db:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    session = csv_sessions_db[config.session_id]
+    files_data = {fid: csv_files_db[fid] for fid in session["files"] if fid in csv_files_db}
+    
+    try:
+        result_data = None
+        
+        if len(config.tables) == 1:
+            # Single table selection
+            table_config = config.tables[0]
+            table_id = table_config["table_id"]
+            selected_columns = table_config["columns"]
+            
+            if table_id in files_data:
+                df = files_data[table_id]["dataframe"]
+                result_data = df[selected_columns].copy()
+        
+        elif len(config.tables) > 1 and config.join_config:
+            # Multi-table join
+            base_table = config.tables[0]
+            base_df = files_data[base_table["table_id"]]["dataframe"][base_table["columns"]].copy()
+            
+            for i, table_config in enumerate(config.tables[1:], 1):
+                if i <= len(config.join_config):
+                    join_spec = config.join_config[i-1]
+                    join_df = files_data[table_config["table_id"]]["dataframe"][table_config["columns"]].copy()
+                    
+                    # Perform join
+                    base_df = base_df.merge(
+                        join_df,
+                        left_on=join_spec["left_column"],
+                        right_on=join_spec["right_column"],
+                        how=join_spec.get("join_type", "inner")
+                    )
+            
+            result_data = base_df
+        
+        if result_data is not None:
+            # Apply filters
+            if config.filters:
+                for filter_config in config.filters:
+                    column = filter_config.get("column")
+                    operator = filter_config.get("operator", "equals")
+                    value = filter_config.get("value")
+                    
+                    if column in result_data.columns:
+                        if operator == "equals":
+                            result_data = result_data[result_data[column] == value]
+                        elif operator == "contains":
+                            result_data = result_data[result_data[column].astype(str).str.contains(str(value), na=False)]
+            
+            # Apply aggregations
+            if config.aggregations:
+                for agg_config in config.aggregations:
+                    group_by = agg_config.get("group_by")
+                    metric = agg_config.get("metric")
+                    operation = agg_config.get("operation", "sum")
+                    
+                    if group_by and metric and group_by in result_data.columns and metric in result_data.columns:
+                        if operation == "sum":
+                            result_data = result_data.groupby(group_by)[metric].sum().reset_index()
+                        elif operation == "avg":
+                            result_data = result_data.groupby(group_by)[metric].mean().reset_index()
+                        elif operation == "count":
+                            result_data = result_data.groupby(group_by)[metric].count().reset_index()
+            
+            # Return preview
+            preview_rows = result_data.head(20)
+            
+            return {
+                "preview_data": preview_rows.to_dict('records'),
+                "total_rows": len(result_data),
+                "columns": list(result_data.columns),
+                "column_types": {col: str(result_data[col].dtype) for col in result_data.columns},
+                "summary_stats": {
+                    col: {
+                        "count": int(result_data[col].count()),
+                        "null_count": int(result_data[col].isnull().sum()),
+                        "unique_count": int(result_data[col].nunique())
+                    } for col in result_data.columns
+                }
+            }
+        
+        else:
+            raise HTTPException(status_code=400, detail="Unable to process column selection")
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error previewing selection: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

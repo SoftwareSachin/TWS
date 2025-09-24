@@ -6,6 +6,7 @@ import Box from "@/assets/icons/dataset.svg";
 import Search from "@/assets/icons/search-md.svg";
 import MessageSquareText from "@/assets/icons/chat.svg";
 import UsersRound from "@/assets/icons/users.svg";
+import PowerBI from "@/assets/icons/powerbi.svg";
 
 export function workspaceMenuList(id, pathname) {
   return [
@@ -26,6 +27,11 @@ export function workspaceMenuList(id, pathname) {
           href: `/workspace/${id}/search`,
           label: "Search",
           icon: Search,
+        },
+        {
+          href: `/workspace/${id}/powerbi`,
+          label: "PowerBI",
+          icon: PowerBI,
         },
         {
           href: `/workspace/${id}/mcp`,
