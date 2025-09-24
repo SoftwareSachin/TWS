@@ -9,8 +9,14 @@ import { WorkspaceMenu } from "./workspaceMenu";
 export function WorkspaceSidebar() {
   const sidebar = useStore(useSidebar, (x) => x);
   const isLargeScreen = useIsLargeScreen();
-  if (!sidebar) return null;
-  const { isOpen, toggleOpen, getOpenState, setIsHover, settings } = sidebar;
+  // Provide fallback state during hydration instead of returning null
+  const { 
+    isOpen = true, 
+    toggleOpen = () => {}, 
+    getOpenState = (isLarge = true) => true, 
+    setIsHover = () => {}, 
+    settings = { disabled: false } 
+  } = sidebar || {};
   return (
     <aside
       className={cn(
