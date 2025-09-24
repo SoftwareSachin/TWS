@@ -69,5 +69,5 @@ externalPort = 3001
 
 [deployment]
 deploymentTarget = "autoscale"
-run = ["bash", "-c", "cd amplifi-dev/frontend && npm run start"]
+run = ["bash", "-c", "cd amplifi-dev/frontend && npm start"]
 build = ["bash", "-c", "cd amplifi-dev/frontend && npm run build"]
