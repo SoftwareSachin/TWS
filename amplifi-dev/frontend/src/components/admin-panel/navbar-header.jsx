@@ -34,6 +34,7 @@ const Navbar = () => {
     { name: "Workspace", href: `/workspace/?id=${user?.clientId}` },
     { name: "Destination", href: `/destination/?id=${user?.clientId}` },
     { name: "Workflows", href: `/workflows/?id=${user?.clientId}` },
+    { name: "Power BI Reports", href: `/power-bi-reports` },
   ];
 
   // Check and set the active navigation link on render and when the pathname changes

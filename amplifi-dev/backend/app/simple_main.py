@@ -68,6 +68,13 @@ from datetime import datetime, timezone
 import tempfile
 import shutil
 import os
+import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
+import plotly.express as px
+import json
+import io
+import uuid
 
 # Simple in-memory data store for testing (in production, use real database)
 simple_users_db: Dict[int, Dict] = {}  # Simple user store for basic CRUD
@@ -91,6 +98,10 @@ global_tools_db: List[Dict] = []  # Global tools and MCP tools
 users_db: List[Dict] = []  # Users database
 search_results_db: Dict[str, List[Dict]] = {}  # Search results by workspace_id
 
+# CSV Power BI Report data stores
+csv_files_db: Dict[str, Dict] = {}  # Store uploaded CSV files and their metadata
+power_bi_reports_db: Dict[str, Dict] = {}  # Store generated Power BI reports
+
 class UserCreate(BaseModel):
     """User creation model"""
     email: str
@@ -104,6 +115,35 @@ class UserResponse(BaseModel):
     name: str
     is_active: bool
     created_at: str
+
+# CSV Power BI Models
+class CSVUploadResponse(BaseModel):
+    """CSV upload response model"""
+    file_id: str
+    filename: str
+    columns: List[str]
+    row_count: int
+    file_size: int
+    preview_data: List[Dict]
+    column_types: Dict[str, str]
+
+class ColumnSelectionRequest(BaseModel):
+    """Column selection request model"""
+    file_id: str
+    selected_columns: List[str]
+    chart_type: Optional[str] = "auto"
+    x_axis: Optional[str] = None
+    y_axis: Optional[List[str]] = None
+
+class PowerBIReportResponse(BaseModel):
+    """Power BI report response model"""
+    report_id: str
+    file_id: str
+    report_name: str
+    chart_data: Dict
+    plotly_json: str
+    created_at: str
+    columns_used: List[str]
 
 # Test PostgreSQL table creation with asyncpg
 @app.on_event("startup")
@@ -178,6 +218,288 @@ async def delete_simple_user(user_id: int):
     
     del simple_users_db[user_id]
     return {"message": "User deleted successfully"}
+
+# ==================== CSV POWER BI ENDPOINTS ====================
+# Endpoints for CSV upload, processing, and Power BI report generation
+
+@app.post("/api/v1/csv/upload", response_model=CSVUploadResponse)
+async def upload_csv_file(file: UploadFile = File(...)):
+    """Upload and analyze CSV file for Power BI report generation"""
+    if not file.filename.lower().endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Only CSV files are allowed")
+    
+    try:
+        # Read CSV content
+        content = await file.read()
+        csv_content = content.decode('utf-8')
+        
+        # Parse CSV with pandas
+        df = pd.read_csv(io.StringIO(csv_content))
+        
+        # Generate unique file ID
+        file_id = str(uuid.uuid4())
+        
+        # Analyze data
+        columns = df.columns.tolist()
+        row_count = len(df)
+        file_size = len(content)
+        
+        # Get column types
+        column_types = {}
+        for col in df.columns:
+            dtype = str(df[col].dtype)
+            if dtype.startswith('int') or dtype.startswith('float'):
+                column_types[col] = 'numeric'
+            elif dtype == 'object':
+                # Check if it's a date
+                try:
+                    pd.to_datetime(df[col].head(), errors='raise')
+                    column_types[col] = 'date'
+                except:
+                    column_types[col] = 'text'
+            elif 'datetime' in dtype:
+                column_types[col] = 'date'
+            else:
+                column_types[col] = 'other'
+        
+        # Get preview data (first 5 rows)
+        preview_data = df.head(5).fillna("").to_dict('records')
+        
+        # Store file info
+        csv_files_db[file_id] = {
+            "file_id": file_id,
+            "filename": file.filename,
+            "dataframe": df,
+            "uploaded_at": datetime.now(timezone.utc).isoformat(),
+            "columns": columns,
+            "row_count": row_count,
+            "file_size": file_size,
+            "column_types": column_types
+        }
+        
+        return CSVUploadResponse(
+            file_id=file_id,
+            filename=file.filename,
+            columns=columns,
+            row_count=row_count,
+            file_size=file_size,
+            preview_data=preview_data,
+            column_types=column_types
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error processing CSV file: {str(e)}")
+
+@app.get("/api/v1/csv/{file_id}/columns")
+async def get_csv_columns(file_id: str):
+    """Get columns and metadata for a specific CSV file"""
+    if file_id not in csv_files_db:
+        raise HTTPException(status_code=404, detail="CSV file not found")
+    
+    file_data = csv_files_db[file_id]
+    df = file_data["dataframe"]
+    
+    # Enhanced column analysis
+    column_analysis = {}
+    for col in df.columns:
+        col_data = df[col]
+        analysis = {
+            "name": col,
+            "type": file_data["column_types"][col],
+            "null_count": col_data.isnull().sum(),
+            "unique_count": col_data.nunique(),
+            "sample_values": col_data.dropna().head(5).tolist()
+        }
+        
+        if file_data["column_types"][col] == 'numeric':
+            analysis.update({
+                "min": float(col_data.min()) if not pd.isna(col_data.min()) else None,
+                "max": float(col_data.max()) if not pd.isna(col_data.max()) else None,
+                "mean": float(col_data.mean()) if not pd.isna(col_data.mean()) else None
+            })
+        
+        column_analysis[col] = analysis
+    
+    return {
+        "file_id": file_id,
+        "filename": file_data["filename"],
+        "columns": column_analysis,
+        "total_rows": file_data["row_count"]
+    }
+
+@app.post("/api/v1/csv/generate-report", response_model=PowerBIReportResponse)
+async def generate_power_bi_report(request: ColumnSelectionRequest):
+    """Generate Power BI style report from selected CSV columns"""
+    if request.file_id not in csv_files_db:
+        raise HTTPException(status_code=404, detail="CSV file not found")
+    
+    try:
+        file_data = csv_files_db[request.file_id]
+        df = file_data["dataframe"]
+        
+        # Filter dataframe to selected columns
+        selected_df = df[request.selected_columns].copy()
+        
+        # Auto-detect chart type if not specified
+        chart_type = request.chart_type or "auto"
+        
+        if chart_type == "auto":
+            numeric_cols = [col for col in request.selected_columns 
+                          if file_data["column_types"][col] == 'numeric']
+            text_cols = [col for col in request.selected_columns 
+                        if file_data["column_types"][col] in ['text', 'date']]
+            
+            if len(numeric_cols) >= 2:
+                chart_type = "scatter"
+            elif len(numeric_cols) == 1 and len(text_cols) >= 1:
+                chart_type = "bar"
+            elif len(text_cols) == 1:
+                chart_type = "pie"
+            else:
+                chart_type = "table"
+        
+        # Generate Plotly chart based on type
+        fig = None
+        
+        if chart_type == "bar":
+            x_col = request.x_axis or (request.selected_columns[0] if request.selected_columns else None)
+            y_col = request.y_axis[0] if request.y_axis else (request.selected_columns[1] if len(request.selected_columns) > 1 else None)
+            
+            if x_col and y_col and x_col in selected_df.columns and y_col in selected_df.columns:
+                # Group by x_col and sum y_col for bar chart
+                grouped_data = selected_df.groupby(x_col)[y_col].sum().reset_index()
+                fig = px.bar(grouped_data, x=x_col, y=y_col, 
+                           title=f"{y_col} by {x_col}")
+        
+        elif chart_type == "scatter":
+            numeric_cols = [col for col in request.selected_columns 
+                          if file_data["column_types"][col] == 'numeric']
+            if len(numeric_cols) >= 2:
+                x_col = numeric_cols[0]
+                y_col = numeric_cols[1]
+                fig = px.scatter(selected_df, x=x_col, y=y_col,
+                               title=f"{y_col} vs {x_col}")
+        
+        elif chart_type == "pie":
+            text_col = next((col for col in request.selected_columns 
+                           if file_data["column_types"][col] == 'text'), None)
+            if text_col:
+                value_counts = selected_df[text_col].value_counts()
+                fig = px.pie(values=value_counts.values, names=value_counts.index,
+                           title=f"Distribution of {text_col}")
+        
+        elif chart_type == "line":
+            x_col = request.x_axis or (request.selected_columns[0] if request.selected_columns else None)
+            y_cols = request.y_axis or [col for col in request.selected_columns[1:] 
+                                      if file_data["column_types"][col] == 'numeric']
+            
+            if x_col and y_cols:
+                fig = go.Figure()
+                for y_col in y_cols:
+                    if y_col in selected_df.columns:
+                        fig.add_trace(go.Scatter(x=selected_df[x_col], y=selected_df[y_col],
+                                               mode='lines+markers', name=y_col))
+                fig.update_layout(title=f"Trend Analysis: {', '.join(y_cols)} over {x_col}",
+                                xaxis_title=x_col, yaxis_title="Values")
+        
+        # Default to table if no chart could be generated
+        if fig is None:
+            # Create a summary table
+            summary_data = []
+            for col in request.selected_columns:
+                if file_data["column_types"][col] == 'numeric':
+                    summary_data.append({
+                        'Column': col,
+                        'Type': 'Numeric',
+                        'Count': len(selected_df[col].dropna()),
+                        'Mean': round(selected_df[col].mean(), 2) if not pd.isna(selected_df[col].mean()) else 'N/A',
+                        'Min': selected_df[col].min() if not pd.isna(selected_df[col].min()) else 'N/A',
+                        'Max': selected_df[col].max() if not pd.isna(selected_df[col].max()) else 'N/A'
+                    })
+                else:
+                    summary_data.append({
+                        'Column': col,
+                        'Type': file_data["column_types"][col].title(),
+                        'Count': len(selected_df[col].dropna()),
+                        'Unique Values': selected_df[col].nunique(),
+                        'Most Common': selected_df[col].mode().iloc[0] if len(selected_df[col].mode()) > 0 else 'N/A'
+                    })
+            
+            # Create table visualization
+            fig = go.Figure(data=[go.Table(
+                header=dict(values=list(summary_data[0].keys()) if summary_data else ['Column', 'Info'],
+                           fill_color='paleturquoise',
+                           align='left'),
+                cells=dict(values=[[row[col] for row in summary_data] for col in summary_data[0].keys()] if summary_data else [['No data'], ['N/A']],
+                          fill_color='lavender',
+                          align='left'))
+            ])
+            fig.update_layout(title="Data Summary Table")
+        
+        # Generate report
+        report_id = str(uuid.uuid4())
+        plotly_json = fig.to_json() if fig else "{}"
+        
+        report_data = {
+            "report_id": report_id,
+            "file_id": request.file_id,
+            "report_name": f"Report for {file_data['filename']}",
+            "chart_data": json.loads(plotly_json),
+            "plotly_json": plotly_json,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "columns_used": request.selected_columns,
+            "chart_type": chart_type
+        }
+        
+        # Store report
+        power_bi_reports_db[report_id] = report_data
+        
+        return PowerBIReportResponse(**report_data)
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error generating report: {str(e)}")
+
+@app.get("/api/v1/csv/reports")
+async def get_all_reports():
+    """Get all generated Power BI reports"""
+    return {
+        "data": list(power_bi_reports_db.values()),
+        "message": "Reports retrieved successfully"
+    }
+
+@app.get("/api/v1/csv/reports/{report_id}")
+async def get_report(report_id: str):
+    """Get specific Power BI report by ID"""
+    if report_id not in power_bi_reports_db:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    return power_bi_reports_db[report_id]
+
+@app.delete("/api/v1/csv/reports/{report_id}")
+async def delete_report(report_id: str):
+    """Delete a specific Power BI report"""
+    if report_id not in power_bi_reports_db:
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    del power_bi_reports_db[report_id]
+    return {"message": "Report deleted successfully"}
+
+@app.delete("/api/v1/csv/{file_id}")
+async def delete_csv_file(file_id: str):
+    """Delete CSV file and associated reports"""
+    if file_id not in csv_files_db:
+        raise HTTPException(status_code=404, detail="CSV file not found")
+    
+    # Delete associated reports
+    reports_to_delete = [report_id for report_id, report in power_bi_reports_db.items() 
+                        if report["file_id"] == file_id]
+    for report_id in reports_to_delete:
+        del power_bi_reports_db[report_id]
+    
+    # Delete CSV file
+    del csv_files_db[file_id]
+    
+    return {"message": "CSV file and associated reports deleted successfully"}
 
 # ==================== API V1 ENDPOINTS ====================
 # Organization-based endpoints that the frontend expects (v1 paths)
