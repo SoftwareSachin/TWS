@@ -1214,6 +1214,179 @@ async def delete_user(user_id: str):
     users_db = [user for user in users_db if user["id"] != user_id]
     return {"message": "User deleted successfully"}
 
+# ==================== API V2 WORKSPACE ENDPOINTS ====================
+# Additional v2 endpoints that the frontend expects
+
+@app.get("/api/v2/workspace/{workspace_id}/chat_apps")
+async def get_workspace_chat_apps_v2(
+    workspace_id: str,
+    order: Optional[str] = "ascendent",
+    page: int = 1,
+    size: int = 50
+):
+    """Get chat apps for a specific workspace (v2 endpoint)"""
+    if workspace_id not in workspace_chat_apps_db:
+        workspace_chat_apps_db[workspace_id] = [
+            {
+                "id": "chat-app-1",
+                "name": "Workspace Chat Assistant",
+                "description": "AI chat assistant for this workspace",
+                "chat_app_type": "unstructured_chat_app",
+                "status": "active",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "workspace_id": workspace_id,
+                "model": "gpt-3.5-turbo",
+                "temperature": 0.7,
+                "config": {
+                    "model": "gpt-3.5-turbo",
+                    "temperature": 0.7,
+                    "max_tokens": 2048
+                }
+            },
+            {
+                "id": "chat-app-2",
+                "name": "Code Review Assistant",
+                "description": "AI assistant specialized in code review and debugging",
+                "chat_app_type": "unstructured_chat_app",
+                "status": "active",
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "workspace_id": workspace_id,
+                "model": "gpt-4",
+                "temperature": 0.3,
+                "config": {
+                    "model": "gpt-4",
+                    "temperature": 0.3,
+                    "max_tokens": 4096
+                }
+            }
+        ]
+    
+    workspace_chat_apps = workspace_chat_apps_db[workspace_id]
+    
+    # Simple pagination
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_apps = workspace_chat_apps[start_idx:end_idx]
+    
+    return {
+        "data": {
+            "items": paginated_apps,
+            "total": len(workspace_chat_apps),
+            "page": page,
+            "size": size,
+            "pages": (len(workspace_chat_apps) + size - 1) // size if size > 0 else 1
+        },
+        "message": "Chat apps retrieved successfully"
+    }
+
+@app.get("/api/v1/organization/{organization_id}/workspace/{workspace_id}/get_users")
+async def get_organization_workspace_users(
+    organization_id: str,
+    workspace_id: str,
+    page: int = 1,
+    size: int = 10
+):
+    """Get users for a specific organization workspace"""
+    # Return mock users for the workspace
+    workspace_users = [
+        {
+            "id": "user-1",
+            "email": "john.doe@example.com",
+            "name": "John Doe",
+            "role": "admin",
+            "status": "active",
+            "workspace_id": workspace_id,
+            "organization_id": organization_id,
+            "joined_at": datetime.now(timezone.utc).isoformat(),
+            "last_login": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": "user-2",
+            "email": "jane.smith@example.com",
+            "name": "Jane Smith",
+            "role": "developer",
+            "status": "active",
+            "workspace_id": workspace_id,
+            "organization_id": organization_id,
+            "joined_at": datetime.now(timezone.utc).isoformat(),
+            "last_login": datetime.now(timezone.utc).isoformat()
+        }
+    ]
+    
+    # Simple pagination
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_users = workspace_users[start_idx:end_idx]
+    
+    return {
+        "data": {
+            "items": paginated_users,
+            "total": len(workspace_users),
+            "page": page,
+            "size": size,
+            "pages": (len(workspace_users) + size - 1) // size if size > 0 else 1
+        },
+        "message": "Organization workspace users retrieved successfully"
+    }
+
+@app.get("/api/v2/workspace/{workspace_id}/users")
+async def get_workspace_users_v2(
+    workspace_id: str,
+    order: Optional[str] = "ascendent",
+    page: int = 1,
+    size: int = 50
+):
+    """Get users for a specific workspace (v2 endpoint)"""
+    # Filter users for this workspace or create mock data
+    workspace_users = [
+        {
+            "id": "user-1",
+            "email": "john.doe@example.com",
+            "name": "John Doe",
+            "role": "admin",
+            "status": "active",
+            "workspace_id": workspace_id,
+            "joined_at": datetime.now(timezone.utc).isoformat(),
+            "last_login": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": "user-2",
+            "email": "jane.smith@example.com",
+            "name": "Jane Smith",
+            "role": "developer",
+            "status": "active",
+            "workspace_id": workspace_id,
+            "joined_at": datetime.now(timezone.utc).isoformat(),
+            "last_login": datetime.now(timezone.utc).isoformat()
+        },
+        {
+            "id": "user-3",
+            "email": "mike.wilson@example.com",
+            "name": "Mike Wilson",
+            "role": "analyst",
+            "status": "invited",
+            "workspace_id": workspace_id,
+            "joined_at": datetime.now(timezone.utc).isoformat(),
+            "last_login": None
+        }
+    ]
+    
+    # Simple pagination
+    start_idx = (page - 1) * size
+    end_idx = start_idx + size
+    paginated_users = workspace_users[start_idx:end_idx]
+    
+    return {
+        "data": {
+            "items": paginated_users,
+            "total": len(workspace_users),
+            "page": page,
+            "size": size,
+            "pages": (len(workspace_users) + size - 1) // size if size > 0 else 1
+        },
+        "message": "Workspace users retrieved successfully"
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="localhost", port=8000)
