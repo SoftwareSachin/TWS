@@ -646,19 +646,22 @@ async def upload_csv_file_multiple(file: UploadFile = File(...)):
                     'id' in col.lower() or df[col].nunique() == len(df)):
                     potential_keys.append(col)
             elif dtype == 'object':
-                # Check if it's a date
+                # Check if it's a date - suppress all warnings
                 try:
-                    # Use coerce to avoid warnings and check if any values are successfully converted
-                    date_test = pd.to_datetime(df[col].head(10), errors='coerce')
-                    # If more than half of the test values are valid dates, consider it a date column
-                    if date_test.notna().sum() > len(date_test) * 0.5:
-                        column_types[col] = 'date'
-                    else:
-                        column_types[col] = 'text'
-                        # Check if text could be a foreign key
-                        if (col.lower().endswith('id') or col.lower().endswith('key') or 
-                            'id' in col.lower()):
-                            potential_keys.append(col)
+                    import warnings
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        # Use coerce to avoid warnings and check if any values are successfully converted
+                        date_test = pd.to_datetime(df[col].head(10), errors='coerce')
+                        # If more than half of the test values are valid dates, consider it a date column
+                        if date_test.notna().sum() > len(date_test) * 0.5:
+                            column_types[col] = 'date'
+                        else:
+                            column_types[col] = 'text'
+                            # Check if text could be a foreign key
+                            if (col.lower().endswith('id') or col.lower().endswith('key') or 
+                                'id' in col.lower()):
+                                potential_keys.append(col)
                 except Exception:
                     column_types[col] = 'text'
                     # Check if text could be a foreign key
@@ -685,20 +688,47 @@ async def upload_csv_file_multiple(file: UploadFile = File(...)):
             
             if column_types[col] == 'numeric':
                 try:
+                    min_val = col_data.min()
+                    max_val = col_data.max()
+                    mean_val = col_data.mean()
+                    
+                    # Ensure values are JSON-serializable (no inf or NaN)
+                    def safe_float(val):
+                        if pd.isna(val) or val == float('inf') or val == float('-inf'):
+                            return None
+                        try:
+                            result = float(val)
+                            # Check if the result is still valid
+                            if result != result or result == float('inf') or result == float('-inf'):  # NaN check
+                                return None
+                            return result
+                        except (ValueError, TypeError, OverflowError):
+                            return None
+                    
                     stats.update({
-                        "min": float(col_data.min()) if not pd.isna(col_data.min()) else None,
-                        "max": float(col_data.max()) if not pd.isna(col_data.max()) else None,
-                        "mean": float(col_data.mean()) if not pd.isna(col_data.mean()) else None
+                        "min": safe_float(min_val),
+                        "max": safe_float(max_val),
+                        "mean": safe_float(mean_val)
                     })
-                except (ValueError, TypeError):
+                except (ValueError, TypeError, OverflowError):
                     pass
             
             column_statistics[col] = stats
         
-        # Calculate data quality score (0-1)
+        # Calculate data quality score (0-1) - ensure it's JSON safe
         total_cells = row_count * len(columns)
-        null_cells = df.isnull().sum().sum()
-        data_quality_score = max(0.0, 1.0 - (null_cells / total_cells)) if total_cells > 0 else 1.0
+        null_cells = int(df.isnull().sum().sum())
+        
+        if total_cells > 0:
+            quality_ratio = null_cells / total_cells
+            data_quality_score = max(0.0, min(1.0, 1.0 - quality_ratio))
+        else:
+            data_quality_score = 1.0
+        
+        # Ensure the score is JSON-serializable
+        data_quality_score = float(data_quality_score)
+        if data_quality_score != data_quality_score or data_quality_score == float('inf') or data_quality_score == float('-inf'):
+            data_quality_score = 1.0
         
         # Generate suggested relationships based on column names
         suggested_relationships = []
