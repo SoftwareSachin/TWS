@@ -648,9 +648,18 @@ async def upload_csv_file_multiple(file: UploadFile = File(...)):
             elif dtype == 'object':
                 # Check if it's a date
                 try:
-                    pd.to_datetime(df[col].head(10), errors='raise')
-                    column_types[col] = 'date'
-                except:
+                    # Use coerce to avoid warnings and check if any values are successfully converted
+                    date_test = pd.to_datetime(df[col].head(10), errors='coerce')
+                    # If more than half of the test values are valid dates, consider it a date column
+                    if date_test.notna().sum() > len(date_test) * 0.5:
+                        column_types[col] = 'date'
+                    else:
+                        column_types[col] = 'text'
+                        # Check if text could be a foreign key
+                        if (col.lower().endswith('id') or col.lower().endswith('key') or 
+                            'id' in col.lower()):
+                            potential_keys.append(col)
+                except Exception:
                     column_types[col] = 'text'
                     # Check if text could be a foreign key
                     if (col.lower().endswith('id') or col.lower().endswith('key') or 
