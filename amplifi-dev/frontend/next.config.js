@@ -1,16 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Enable support for Replit proxy environment
+  // Enable support for Replit proxy environment  
   allowedDevOrigins: [
-    // Allow all Replit domains
     'https://*.replit.dev',
-    'https://*.replit.app',
+    'https://*.replit.app', 
     'https://*.replit.com',
-    // Allow localhost for development
     'http://localhost:5000',
-    'http://0.0.0.0:5000',
-    // Allow all origins in development
-    '*'
+    'http://0.0.0.0:5000'
   ],
   
   // Configure headers for CORS support
@@ -46,10 +42,8 @@ const nextConfig = {
     ];
   },
 
-  // Optimize for production
-  experimental: {
-    optimizeCss: true,
-  },
+  // Experimental features (disabled for stability)
+  experimental: {},
 
   // Configure images for better performance
   images: {
@@ -57,8 +51,6 @@ const nextConfig = {
     formats: ['image/webp', 'image/avif'],
   },
 
-  // Disable telemetry for cleaner logs
-  telemetry: false,
 };
 
 module.exports = nextConfig;
