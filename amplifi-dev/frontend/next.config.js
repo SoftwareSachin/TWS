@@ -5,6 +5,7 @@ const nextConfig = {
     'https://*.replit.dev',
     'https://*.replit.app', 
     'https://*.replit.com',
+    'https://*.worf.replit.dev',
     'http://localhost:5000',
     'http://0.0.0.0:5000'
   ],

@@ -664,6 +664,38 @@ async def upload_csv_file_multiple(file: UploadFile = File(...)):
         # Get preview data (first 5 rows)
         preview_data = df.head(5).fillna("").to_dict('records')
         
+        # Calculate column statistics
+        column_statistics = {}
+        for col in df.columns:
+            col_data = df[col]
+            stats = {
+                "count": int(col_data.count()),
+                "null_count": int(col_data.isnull().sum()),
+                "unique_count": int(col_data.nunique())
+            }
+            
+            if column_types[col] == 'numeric':
+                try:
+                    stats.update({
+                        "min": float(col_data.min()) if not pd.isna(col_data.min()) else None,
+                        "max": float(col_data.max()) if not pd.isna(col_data.max()) else None,
+                        "mean": float(col_data.mean()) if not pd.isna(col_data.mean()) else None
+                    })
+                except (ValueError, TypeError):
+                    pass
+            
+            column_statistics[col] = stats
+        
+        # Calculate data quality score (0-1)
+        total_cells = row_count * len(columns)
+        null_cells = df.isnull().sum().sum()
+        data_quality_score = max(0.0, 1.0 - (null_cells / total_cells)) if total_cells > 0 else 1.0
+        
+        # Generate suggested relationships based on column names
+        suggested_relationships = []
+        for col in potential_keys:
+            suggested_relationships.append(f"Potential key column: {col}")
+        
         # Store enhanced file info
         csv_files_db[file_id] = {
             "file_id": file_id,
@@ -686,7 +718,10 @@ async def upload_csv_file_multiple(file: UploadFile = File(...)):
             file_size=file_size,
             preview_data=preview_data,
             column_types=column_types,
-            potential_keys=potential_keys
+            potential_keys=potential_keys,
+            data_quality_score=data_quality_score,
+            suggested_relationships=suggested_relationships,
+            column_statistics=column_statistics
         )
         
     except Exception as e:
