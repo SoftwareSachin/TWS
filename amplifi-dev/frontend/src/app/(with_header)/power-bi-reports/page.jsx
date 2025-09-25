@@ -33,10 +33,16 @@ const PowerBIReportsPage = () => {
     }
   };
 
-  const handleUploadSuccess = (fileData) => {
-    setUploadedFile(fileData);
-    setCurrentStep(2);
-    showSuccess("File uploaded successfully! Select columns to analyze.");
+  const handleUploadSuccess = (uploadResult) => {
+    // uploadResult contains { files: [...], errors: [...] }
+    if (uploadResult.files && uploadResult.files.length > 0) {
+      // For now, use the first uploaded file
+      setUploadedFile(uploadResult.files[0]);
+      setCurrentStep(2);
+      showSuccess("File uploaded successfully! Select columns to analyze.");
+    } else {
+      showError("No files were uploaded successfully.");
+    }
   };
 
   const handleGenerateReport = async (reportConfig) => {
