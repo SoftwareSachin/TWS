@@ -104,9 +104,12 @@ global_tools_db: List[Dict] = []  # Global tools and MCP tools
 users_db: List[Dict] = []  # Users database
 search_results_db: Dict[str, List[Dict]] = {}  # Search results by workspace_id
 
-# CSV Power BI Report data stores
+# Enhanced CSV Power BI Report data stores
 csv_files_db: Dict[str, Dict] = {}  # Store uploaded CSV files and their metadata
 power_bi_reports_db: Dict[str, Dict] = {}  # Store generated Power BI reports
+dashboard_templates_db: Dict[str, Dict] = {}  # Store custom dashboard templates
+query_intelligence_db: Dict[str, List[Dict]] = {}  # Store intelligent query suggestions
+data_relationships_db: Dict[str, List[Dict]] = {}  # Store detected relationships
 
 class UserCreate(BaseModel):
     """User creation model"""
@@ -528,6 +531,9 @@ class MultiCSVUploadResponse(BaseModel):
     preview_data: List[Dict]
     column_types: Dict[str, str]
     potential_keys: List[str]  # Columns that might be keys/IDs
+    data_quality_score: float
+    suggested_relationships: List[str]
+    column_statistics: Dict[str, Dict]
 
 class RelationshipDetectionRequest(BaseModel):
     """Request model for relationship detection"""
@@ -549,12 +555,59 @@ class RelationshipDetectionResponse(BaseModel):
     graph_data: Dict
     total_tables: int
     total_relationships: int
+    confidence_distribution: Dict[str, int]
+    suggested_joins: List[Dict]
+    data_lineage: Dict
 
 class QueryBasedReportRequest(BaseModel):
     """Request model for query-based report generation"""
     file_ids: List[str]
     query: str
     report_type: Optional[str] = "auto"
+
+class ProfessionalDashboardRequest(BaseModel):
+    """Request model for professional dashboard creation"""
+    file_ids: List[str]
+    dashboard_name: str
+    template_type: str = "executive"  # executive, analytical, operational, financial
+    color_scheme: str = "corporate"  # corporate, minimal, dark, light
+    layout_type: str = "grid"  # grid, flow, tabs
+    widgets: List[Dict] = []
+    filters: List[Dict] = []
+    kpi_metrics: List[str] = []
+
+class DashboardWidget(BaseModel):
+    """Individual dashboard widget configuration"""
+    widget_id: str
+    widget_type: str  # chart, table, kpi, text, filter
+    title: str
+    data_source: str  # file_id
+    chart_config: Dict
+    position: Dict  # x, y, width, height
+    styling: Dict = {}
+
+class AdvancedVisualizationRequest(BaseModel):
+    """Request for advanced visualization creation"""
+    file_ids: List[str]
+    visualization_type: str  # heatmap, treemap, sankey, network, geographic
+    dimensions: List[str]
+    measures: List[str]
+    aggregation_type: str = "sum"
+    styling_options: Dict = {}
+
+class IntelligentQueryRequest(BaseModel):
+    """Request for intelligent query suggestions"""
+    file_ids: List[str]
+    context: Optional[str] = None
+    intent: Optional[str] = None  # analysis, comparison, trend, distribution
+
+class EntityRelationshipGraphRequest(BaseModel):
+    """Request for enhanced entity relationship graph"""
+    file_ids: List[str]
+    include_data_preview: bool = True
+    layout_algorithm: str = "force_directed"  # force_directed, hierarchical, circular
+    show_column_details: bool = True
+    confidence_threshold: float = 0.3
 
 @app.post("/api/v1/csv/upload-multiple", response_model=MultiCSVUploadResponse)
 async def upload_csv_file_multiple(file: UploadFile = File(...)):
@@ -726,53 +779,92 @@ async def detect_relationships(request: RelationshipDetectionRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error detecting relationships: {str(e)}")
 
-def calculate_column_similarity(col1: pd.Series, col2: pd.Series, name1: str, name2: str) -> float:
-    """Calculate similarity score between two columns"""
-    score = 0.0
-    
-    # Name similarity (high weight for ID/key patterns)
-    if name1.lower() == name2.lower():
-        score += 0.4
-    elif any(keyword in name1.lower() and keyword in name2.lower() 
-             for keyword in ['id', 'key', 'code', 'number']):
-        score += 0.3
-    elif name1.lower().replace('_', '').replace('-', '') == name2.lower().replace('_', '').replace('-', ''):
-        score += 0.25
-    
-    # Data type similarity
-    if str(col1.dtype) == str(col2.dtype):
-        score += 0.2
-    
-    # Value overlap
-    unique_1 = set(col1.dropna().astype(str))
-    unique_2 = set(col2.dropna().astype(str))
-    
-    if unique_1 and unique_2:
-        intersection = len(unique_1 & unique_2)
-        union = len(unique_1 | unique_2)
-        if union > 0:
-            jaccard = intersection / union
-            score += 0.4 * jaccard
-    
-    return min(score, 1.0)
 
-def determine_relationship_type(col1: pd.Series, col2: pd.Series, name1: str, name2: str) -> str:
-    """Determine the type of relationship between two columns"""
-    unique_1 = col1.nunique()
-    unique_2 = col2.nunique()
-    total_1 = len(col1.dropna())
-    total_2 = len(col2.dropna())
+
+def calculate_data_quality_score(df: pd.DataFrame, column_types: Dict[str, str]) -> float:
+    """Calculate overall data quality score for a dataset"""
+    try:
+        total_cells = df.size
+        missing_cells = df.isnull().sum().sum()
+        completeness = 1 - (missing_cells / total_cells) if total_cells > 0 else 0
+        
+        # Check for duplicates
+        duplicate_rows = df.duplicated().sum()
+        uniqueness = 1 - (duplicate_rows / len(df)) if len(df) > 0 else 0
+        
+        # Check data type consistency
+        consistency_score = 0.8  # Default high score
+        for col in df.columns:
+            if column_types.get(col) == 'numeric':
+                try:
+                    pd.to_numeric(df[col], errors='raise')
+                except:
+                    consistency_score -= 0.1
+        
+        # Calculate overall score (weighted average)
+        quality_score = (completeness * 0.4 + uniqueness * 0.3 + max(consistency_score, 0) * 0.3)
+        return round(min(quality_score, 1.0), 3)
+    except:
+        return 0.5  # Default score if calculation fails
+
+def generate_column_statistics(df: pd.DataFrame, column_types: Dict[str, str]) -> Dict[str, Dict]:
+    """Generate comprehensive statistics for each column"""
+    statistics = {}
     
-    # One-to-One
-    if unique_1 == total_1 and unique_2 == total_2:
-        return "one-to-one"
+    for col in df.columns:
+        col_stats = {
+            "name": col,
+            "type": column_types.get(col, 'unknown'),
+            "total_count": len(df[col]),
+            "null_count": int(df[col].isnull().sum()),
+            "unique_count": int(df[col].nunique()),
+            "null_percentage": round((df[col].isnull().sum() / len(df[col])) * 100, 2) if len(df[col]) > 0 else 0
+        }
+        
+        if column_types.get(col) == 'numeric':
+            try:
+                numeric_data = pd.to_numeric(df[col], errors='coerce')
+                col_stats.update({
+                    "min": float(numeric_data.min()) if not pd.isna(numeric_data.min()) else None,
+                    "max": float(numeric_data.max()) if not pd.isna(numeric_data.max()) else None,
+                    "mean": float(numeric_data.mean()) if not pd.isna(numeric_data.mean()) else None,
+                    "median": float(numeric_data.median()) if not pd.isna(numeric_data.median()) else None,
+                    "std": float(numeric_data.std()) if not pd.isna(numeric_data.std()) else None
+                })
+            except:
+                pass
+        elif column_types.get(col) in ['text', 'date']:
+            try:
+                mode_value = df[col].mode()
+                col_stats.update({
+                    "most_common": str(mode_value.iloc[0]) if len(mode_value) > 0 else None,
+                    "sample_values": [str(val) for val in df[col].dropna().head(3).tolist()]
+                })
+            except:
+                pass
+        
+        statistics[col] = col_stats
     
-    # One-to-Many / Many-to-One
-    if unique_1 == total_1 or unique_2 == total_2:
-        return "one-to-many"
+    return statistics
+
+def generate_relationship_suggestions(columns: List[str], column_types: Dict[str, str], potential_keys: List[str]) -> List[str]:
+    """Generate intelligent relationship suggestions"""
+    suggestions = []
     
-    # Many-to-Many (default)
-    return "many-to-many"
+    # Look for common patterns
+    id_columns = [col for col in columns if 'id' in col.lower() or col in potential_keys]
+    date_columns = [col for col in columns if column_types.get(col) == 'date']
+    
+    if id_columns:
+        suggestions.append(f"Primary keys detected: {', '.join(id_columns[:3])}")
+    
+    if date_columns:
+        suggestions.append(f"Time-series analysis possible with: {', '.join(date_columns[:2])}")
+    
+    if len([col for col in columns if column_types.get(col) == 'numeric']) >= 2:
+        suggestions.append("Multiple numeric columns suitable for correlation analysis")
+    
+    return suggestions[:5]  # Limit to 5 suggestions
 
 @app.post("/api/v1/csv/generate-query-report")
 async def generate_query_based_report(request: QueryBasedReportRequest):
